@@ -27,3 +27,4 @@ console.log(`%cYou now have your token in the clipboard!`, 'font-size: 16px');
 
 After that place it into a '.env' at the root level and run. There's either a node.js one with Discord.js, or a python one. Originally started with the JS one but it would eat eat a ton of memory for some reason (100+MB), so I switched to 
 python and it seems to be quite a bit better. 
+* Note: if using the python one, sometime in March 2025 discord.py was giving me some problems, switched to discord.py-self seems to fix it, but the two libraries have the same name `discord`, make sure actually using `discord.py-self`
