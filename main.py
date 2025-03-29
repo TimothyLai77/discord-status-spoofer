@@ -6,14 +6,19 @@ import discord
 load_dotenv()
 token = os.getenv('TOKEN')
 
-client = discord.Client()
 
 # see: https://discordpy-self.readthedocs.io/en/latest/api.html?highlight=status#discord.Status
 # seems to be a bug: https://github.com/dolfies/discord.py-self/issues/740 with any other status apart from dnd
-@client.event
-async def on_ready():
-    await client.change_presence(status=discord.Status.dnd, afk=True)
-    print(f'We have logged in as {client.user}, with status as {client.client_status}')
+# @client.event
+# async def on_ready():
+#     await client.change_presence(status=discord.Status.dnd, afk=True)
+#     print(f'We have logged in as {client.user}, with status as {client.client_status}')
 
 
+class MyClient(discord.Client):
+    async def on_ready(self):
+        print(f'Logged in as {self.user} (ID: {self.user.id})')
+        print('------')
+
+client = MyClient()
 client.run(token)
