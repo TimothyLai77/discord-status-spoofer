@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import asyncio
 
 # get discord user token from .env
-load_dotenv()
+load_dotenv(override=True)
 token = os.getenv('TOKEN')
 
 
@@ -12,22 +12,23 @@ class MyClient(discord.Client):
     async def on_ready(self):
         print(f'Logged in as {self.user}')
         # await client.change_presence(status=discord.Status.dnd, afk=True)
-        await changeStaus(discord.Status.dnd,True)
+        await changeStatus(discord.Status.dnd,True)
 
+client = MyClient()
 
-async def changeStaus(status, isAFK=True):
+async def changeStatus(status, isAFK=True):
     await client.change_presence(status=status, afk=True)
 
 
 async def login():
-    client = MyClient()
     await client.login(token)
-    await clinet.connect(reconnect=True)
+    await client.connect(reconnect=True)
+    #client.run(token)
+
 
 def main():
     print('Starting..')
     asyncio.run(login())
-
 
 
 if __name__ == "__main__":
