@@ -1,3 +1,5 @@
+#TODO: honestly, i think i should just use the aiohttp library rather than base python?
+# https://www.geeksforgeeks.org/asynchronous-http-requests-with-python/
 import discord # specifically use the discord.py-self fork, since idk seems to work better?
 import os
 import asyncio
