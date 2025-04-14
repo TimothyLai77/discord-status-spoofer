@@ -1,12 +1,11 @@
-#TODO: honestly, i think i should just use the aiohttp library rather than base python?
-# https://www.geeksforgeeks.org/asynchronous-http-requests-with-python/
+
 import discord # specifically use the discord.py-self fork, since idk seems to work better?
+from discord.ext import tasks
 import os
 import asyncio
 import threading
 from dotenv import load_dotenv
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from socketserver import ThreadingMixIn
+
 
 
 
@@ -16,50 +15,32 @@ token = os.getenv('TOKEN')
 PORT = int(os.getenv('PORT'))
 
 async def changeStatus(status, isAFK=True):
-    await client.change_presence(status=status, afk=True)
+    try:
+        await client.change_presence(status=status, afk=True)
+    except Exception as e:
+        print(f'{e}')
+        pass
 
 
 class MyClient(discord.Client):
+
     async def on_ready(self):
         print(f'Logged in as {self.user}')
-        # await client.change_presence(status=discord.Status.dnd, afk=True)
-        await changeStatus(discord.Status.dnd,True)
+        await changeStatus(discord.Status.idle)
+        print('does this actually return now')
+        
 
-
-class RequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b'Hello world\t' + threading.currentThread().getName().encode() + b'\t' + str(threading.active_count()).encode() + b'\n')
-
-# threaded example:  https://stackoverflow.com/a/51559006
-class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
-    """Handle requests in a separate thread."""
-    pass
 
 client = MyClient()
 
 
 
-
-async def login():
-    # honestly i think i could swap this out for client.run instead
-    await client.login(token)
-    await client.connect(reconnect=True)
-
-
-def startHTTPServer():
-    httpd = ThreadedHTTPServer(('', PORT), RequestHandler)
-    print('http server starting..')
-    httpd.serve_forever()
-
-
-
-
 def main():
+
     print('main starting..')
-    asyncio.run(login())
-    startHTTPServer()
+    asyncio.run(client.run(token))
+
+
 
 
 if __name__ == "__main__":
