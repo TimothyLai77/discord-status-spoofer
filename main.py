@@ -14,7 +14,7 @@ PORT = int(os.getenv('PORT'))
 
 statusDict ={
     "online": discord.Status.online,
-    "away" : discord.Status.away,
+    "away" : discord.Status.idle,
     "dnd" : discord.Status.dnd,
     "invisible" : discord.Status.invisible
 }
@@ -26,24 +26,37 @@ async def changeStatus(status, isAFK=True):
         print(f'{e}')
         pass
 
+
 app = Flask('flask-app')
 
+def startFlask():
+    app.run()
 
 
 class MyClient(discord.Client):
     async def on_ready(self):
         print(f'Logged in as {self.user}')
         await changeStatus(discord.Status.online)
-        app.run()
 
+
+    """ example json
+    {
+        "newStatus": "dnd"
+        "isAfk": true
+    }
+    """
     @app.route("/status", methods=['POST'])
     async def changeStatusRequest():
         data = request.get_json()
+        print(data)
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
+        
 
-        await changeStatus(discord.Status.dnd)
-        return jsonify({"received": data}), 200
+        updatedStatus = statusDict[data.newStatus]
+        isAfk = data.isAfk
+        await changeStatus(updatedStatus, isAfk)
+        return "status updated", 200
 
 
 
@@ -58,6 +71,8 @@ client = MyClient()
 
 def main():
     print('main starting..')
+    flask_thread = threading.Thread(target=startFlask)
+    flask_thread.start()
     asyncio.run(client.run(token))
     
 
