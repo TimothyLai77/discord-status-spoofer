@@ -45,7 +45,8 @@ class MyClient(discord.Client):
     # def test():
     #     return "<a>hello</a>"
     
-
+    # todo: idk what happens if i do online+isAfk=True, might just wanna have any online set to false
+    # won't get notifications but also less suspicious from discord i guess?
   
     async def changeStatusRequest():
         # get json from post request
