@@ -45,8 +45,7 @@ class MyClient(discord.Client):
     # def test():
     #     return "<a>hello</a>"
     
-    # todo: idk what happens if i do online+isAfk=True, might just wanna have any online set to false
-    # won't get notifications but also less suspicious from discord i guess?
+
   
     async def changeStatusRequest():
         # get json from post request
@@ -54,6 +53,9 @@ class MyClient(discord.Client):
         data = request.get_json()
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
+        
+        # todo: idk what happens if i do online+isAfk=True, might just wanna have any online set to false
+        # won't get notifications but also less suspicious from discord i guess?
 
         # try to update the status
         try:
@@ -62,16 +64,7 @@ class MyClient(discord.Client):
             return "something wrong", 500
         return "status updated", 200
 
-
-
-    
-
-        
-
-
 client = MyClient()
-
-
 
 def main():
     print('main starting..')
@@ -79,9 +72,6 @@ def main():
     flask_thread.start()
     asyncio.run(client.run(token))
     
-
-
-
 
 if __name__ == "__main__":
     main()
