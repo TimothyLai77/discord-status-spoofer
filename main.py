@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 import discord # specifically use the discord.py-self fork, since idk seems to work better?
 import os
@@ -23,14 +23,17 @@ async def changeStatus(status, isAFK=True):
     try:
         await client.change_presence(status=status, afk=True)
     except Exception as e:
+        # right now it's throwing: MessageToDict() got an unexpected keyword argument 'including_default_value_fields'
+        # seems to work if i just ignore it?
         print(f'{e}')
         pass
 
-
+# create flask app
 app = Flask('flask-app')
 
+# function to start flask app
 def startFlask():
-    app.run()
+    app.run(host='0.0.0.0')
 
 
 class MyClient(discord.Client):
@@ -38,24 +41,24 @@ class MyClient(discord.Client):
         print(f'Logged in as {self.user}')
         await changeStatus(discord.Status.online)
 
+    # @app.route("/")
+    # def test():
+    #     return "<a>hello</a>"
+    
 
-    """ example json
-    {
-        "newStatus": "dnd"
-        "isAfk": true
-    }
-    """
-    @app.route("/status", methods=['POST'])
+  
     async def changeStatusRequest():
+        # get json from post request
+        # expected format: {"newStatus": "dnd", "isAfk": true}
         data = request.get_json()
-        print(data)
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
-        
 
-        updatedStatus = statusDict[data.newStatus]
-        isAfk = data.isAfk
-        await changeStatus(updatedStatus, isAfk)
+        # try to update the status
+        try:
+            await changeStatus(data["newStatus"], data["isAfk"])
+        except Exception as e:
+            return "something wrong", 500
         return "status updated", 200
 
 
