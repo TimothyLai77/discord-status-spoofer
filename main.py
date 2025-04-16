@@ -26,7 +26,7 @@ async def changeStatus(status, isAFK=True):
     except Exception as e:
         # right now it's throwing: MessageToDict() got an unexpected keyword argument 'including_default_value_fields'
         # seems to work if i just ignore it?
-        print(f'{e}')
+        #print(f'{e}')
         pass
 
 # create flask app
@@ -61,11 +61,14 @@ class MyClient(discord.Client):
             return "error", 500
         
 
-    @app.route("/updateStatus", methods=['POST'])
+    @app.route("/updateStatus", methods=['POST', 'OPTIONS'])
+    @cross_origin()
     async def changeStatusRequest():
         # get json from post request
         # expected format: {"newStatus": "dnd", "isAfk": true}
+
         data = request.get_json()
+
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
         
@@ -76,8 +79,8 @@ class MyClient(discord.Client):
         try:
             await changeStatus(data["newStatus"], data["isAfk"])
         except Exception as e:
-            return "something wrong", 500
-        return "status updated", 200
+            return jsonify({'message': 'Status update failed!'}), 500
+        return jsonify({'message': 'Status updated successfully'}), 200
 
 client = MyClient()
 
