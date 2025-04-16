@@ -51,7 +51,7 @@ const StatusSelector = () => {
             <Switch.Control>
                 <Switch.Thumb />
             </Switch.Control>
-            <Switch.Label> AFK Enabled (enable push notifications) </Switch.Label>
+            <Switch.Label> AFK Enabled (enable push notifications) (also non functional, all updates will be set with isAFK=true) </Switch.Label>
         </Switch.Root>
         </Card.Footer>
     </Card.Root>
