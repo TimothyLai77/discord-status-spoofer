@@ -45,7 +45,20 @@ class MyClient(discord.Client):
     def testing():
         return "<h1>flask is running</h1>"
     
-    @app.route("/status", methods=['POST'])
+    @app.route("/getStatus", methods=['GET'])
+    def getStatus():
+        try:
+            statusStr = client.status.value
+            currentStatus = {
+                "currentStatus": statusStr
+                }
+            return jsonify(currentStatus)
+        except Exception as e:
+            print(e)
+            return "error", 500
+        
+
+    @app.route("/updateStatus", methods=['POST'])
     async def changeStatusRequest():
         # get json from post request
         # expected format: {"newStatus": "dnd", "isAfk": true}
