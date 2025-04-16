@@ -33,7 +33,7 @@ app = Flask('flask-app')
 
 # function to start flask app
 def startFlask():
-    app.run(host='0.0.0.0')
+    app.run(host='0.0.0.0', port=PORT)
 
 
 class MyClient(discord.Client):
@@ -41,12 +41,11 @@ class MyClient(discord.Client):
         print(f'Logged in as {self.user}')
         await changeStatus(discord.Status.online)
 
-    # @app.route("/")
-    # def test():
-    #     return "<a>hello</a>"
+    @app.route("/")
+    def testing():
+        return "<h1>flask is running</h1>"
     
-
-  
+    @app.route("/status", methods=['POST'])
     async def changeStatusRequest():
         # get json from post request
         # expected format: {"newStatus": "dnd", "isAfk": true}
