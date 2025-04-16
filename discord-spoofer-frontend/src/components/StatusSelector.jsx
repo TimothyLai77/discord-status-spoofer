@@ -15,6 +15,7 @@ const StatusSelector = () => {
                 setStatus(currentStatus)
             }catch (error){
                  console.error('Error:', error);
+                 setStatus("error getting status")
             }
         }
         fetchData()
