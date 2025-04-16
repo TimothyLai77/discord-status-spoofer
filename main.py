@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS, cross_origin
 from dotenv import load_dotenv
 import discord # specifically use the discord.py-self fork, since idk seems to work better?
 import os
@@ -31,6 +32,7 @@ async def changeStatus(status, isAFK=True):
 # create flask app
 app = Flask('flask-app')
 
+
 # function to start flask app
 def startFlask():
     app.run(host='0.0.0.0', port=PORT)
@@ -46,6 +48,7 @@ class MyClient(discord.Client):
         return "<h1>flask is running</h1>"
     
     @app.route("/getStatus", methods=['GET'])
+    @cross_origin()
     def getStatus():
         try:
             statusStr = client.status.value

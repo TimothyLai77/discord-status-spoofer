@@ -2,11 +2,28 @@
 import { Card } from "@chakra-ui/react"
 import { Button } from "@chakra-ui/react"
 import { Switch } from "@chakra-ui/react"
+import { useEffect, useState } from "react";
 const StatusSelector = () => {
+    const [status, setStatus] = useState([]);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try{
+                const response = await fetch('http://127.0.0.1:8081/getStatus')
+                const result = await response.json()
+                const currentStatus = result.currentStatus
+                setStatus(currentStatus)
+            }catch (error){
+                 console.error('Error:', error);
+            }
+        }
+        fetchData()
+    }, []);
+
   return (
     <Card.Root>
         <Card.Header>
-            Current status: 
+            Current status: {status}
         </Card.Header>
         <Card.Body gap="2">
             <Button>online</Button>
