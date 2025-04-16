@@ -22,16 +22,18 @@ statusDict ={
 
 async def changeStatus(status, isAFK=True):
     try:
-        await client.change_presence(status=status, afk=True)
+        
+        await client.change_presence(status=statusDict[status], afk=True)
     except Exception as e:
         # right now it's throwing: MessageToDict() got an unexpected keyword argument 'including_default_value_fields'
         # seems to work if i just ignore it?
         #print(f'{e}')
         pass
 
+
 # create flask app
 app = Flask('flask-app')
-
+CORS(app)
 
 # function to start flask app
 def startFlask():
@@ -41,7 +43,7 @@ def startFlask():
 class MyClient(discord.Client):
     async def on_ready(self):
         print(f'Logged in as {self.user}')
-        await changeStatus(discord.Status.online)
+        await changeStatus(discord.Status.invisible)
 
     @app.route("/")
     def testing():
@@ -62,25 +64,26 @@ class MyClient(discord.Client):
         
 
     @app.route("/updateStatus", methods=['POST', 'OPTIONS'])
-    @cross_origin()
     async def changeStatusRequest():
+        if request.method == 'OPTIONS':
+            # Usually Flask-CORS handles OPTIONS requests automatically.
+            return jsonify({}), 200
         # get json from post request
         # expected format: {"newStatus": "dnd", "isAfk": true}
-
         data = request.get_json()
 
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
-        
-        # todo: idk what happens if i do online+isAfk=True, might just wanna have any online set to false
-        # won't get notifications but also less suspicious from discord i guess?
 
         # try to update the status
+        newStatus = data["newStatus"]
+        afk = data["isAfk"]
         try:
-            await changeStatus(data["newStatus"], data["isAfk"])
+            await changeStatus(newStatus, afk)
+            return "success",200
         except Exception as e:
-            return jsonify({'message': 'Status update failed!'}), 500
-        return jsonify({'message': 'Status updated successfully'}), 200
+            return "error: could not update",500
+
 
 client = MyClient()
 
