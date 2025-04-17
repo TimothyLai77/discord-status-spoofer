@@ -1,32 +1,31 @@
-FROM node:23.11.0
+FROM node:23.11.0 AS build-stage
 # app directory
 WORKDIR /app
 # copy the env file in
-COPY ./env ./.env
-
-
+COPY . .
 # ========= FRONTEND STUFF =========
-
-#install deps for backend
+# create dir
 WORKDIR /app/discord-spoofer-frontend
-RUN npm install --silent --no-optional
 
-COPY ./discord-spoofer-frontend/package*.json ./
+# install depedencies
+# COPY ./discord-spoofer-frontend/package*.json /app/discord-spoofer-frontend/
 
-RUN npm install --silent --no-optional
+RUN npm install
 
-# copy and build the react-ui
-# so you can cache the ui build if changes are only made to server  
-COPY ./discord-spoofer-frontend/src ./src
-COPY ./discord-spoofer-frontend/public ./public
 RUN npm run build
 
 # ========= BACKEND STUFF =========
-FROM python:3.11
+FROM python:3.13 AS final-stage
+COPY --from=build-stage /app/discord-spoofer-frontend/ /app/discord-spoofer-frontend/
+
+COPY .env /app/.env
 WORKDIR /app
+
 #copy server code
 COPY ./main.py ./main.py
+COPY ./requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 #start the app
-CMD ["python", "./main.py"]
+#CMD ["ls", "-la"]
+CMD ["python", "main.py"]

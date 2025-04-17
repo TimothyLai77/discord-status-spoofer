@@ -10,9 +10,9 @@ import json
 
 
 # get discord user token from .env
-load_dotenv(override=True)
+load_dotenv('./.env',override=True)
 token = os.getenv('TOKEN')
-PORT = int(os.getenv('PORT'))
+PORT = os.getenv('PORT')
 
 statusDict ={
     "online": discord.Status.online,
@@ -24,7 +24,7 @@ statusDict ={
 async def changeStatus(status, isAFK=True):
     try:
         
-        await client.change_presence(status=statusDict[status], afk=True)
+        await client.change_presence(status=statusDict[status], afk=isAFK)
     except Exception as e:
         # right now it's throwing: MessageToDict() got an unexpected keyword argument 'including_default_value_fields'
         # seems to work if i just ignore it?
@@ -44,6 +44,7 @@ CORS(app, resources={r"/api/*": {"origins": frontendOrigins}})
 
 # function to start flask app
 def startFlask():
+    print(f'Starting webapp on port:{PORT} ')
     serve(app,host='0.0.0.0', port=PORT)
     #app.run(host='0.0.0.0', port=PORT)
 
@@ -97,6 +98,7 @@ client = MyClient()
 
 def main():
     print('main starting..')
+
     flask_thread = threading.Thread(target=startFlask)
     flask_thread.start()
     asyncio.run(client.run(token))
