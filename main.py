@@ -49,7 +49,7 @@ class MyClient(discord.Client):
     def testing():
         return "<h1>flask is running</h1>"
     
-    @app.route("/getStatus", methods=['GET'])
+    @app.route("/api/getStatus", methods=['GET'])
     @cross_origin()
     def getStatus():
         try:
@@ -63,7 +63,7 @@ class MyClient(discord.Client):
             return "error", 500
         
 
-    @app.route("/updateStatus", methods=['POST', 'OPTIONS'])
+    @app.route("/api/updateStatus", methods=['POST', 'OPTIONS'])
     async def changeStatusRequest():
         if request.method == 'OPTIONS':
             # Usually Flask-CORS handles OPTIONS requests automatically.

@@ -10,7 +10,7 @@ const StatusSelector = () => {
     const handleButtonClick = async (status) => {
         try{
             const json = {newStatus: status, isAfk: true}
-            const reponse = await axios.post('http://127.0.0.1:8081/updateStatus', json)
+            const reponse = await axios.post('http://127.0.0.1:8081/api/updateStatus', json)
         }catch (error){
             console.error(`Error: ${error}`)
         }
@@ -22,7 +22,7 @@ const StatusSelector = () => {
         const fetchData = async () => {
             try{
                 // todo: chnage this to use axios
-                const response = await fetch('http://127.0.0.1:8081/getStatus')
+                const response = await fetch('http://127.0.0.1:8081/api/getStatus')
                 const result = await response.json()
                 const currentStatus = result.currentStatus
                 setStatus(currentStatus)
