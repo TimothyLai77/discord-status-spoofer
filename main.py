@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
+from waitress import serve
 from dotenv import load_dotenv
 import discord # specifically use the discord.py-self fork, since idk seems to work better?
 import os
@@ -40,7 +41,8 @@ CORS(app, resources={r"/api/*": {"origins": frontendOrigins}})
 
 # function to start flask app
 def startFlask():
-    app.run(host='0.0.0.0', port=PORT)
+    serve(app,host='0.0.0.0', port=PORT)
+    #app.run(host='0.0.0.0', port=PORT)
 
 
 class MyClient(discord.Client):
