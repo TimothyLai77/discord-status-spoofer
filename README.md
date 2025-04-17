@@ -2,6 +2,8 @@
 I want my Discord status to be set as one status and to not update.
 This is a Python program (using discord.py-self) with a React frontend to pick a status. 
 
+![demo](/readme_resources/example.gif)
+
 # Setup (docker):
 1. copy the `env_template.txt` as `.env` and fill in the fields
 2. `docker compose up -d` to run
