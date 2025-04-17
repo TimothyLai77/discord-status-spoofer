@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS, cross_origin
 from waitress import serve
 from dotenv import load_dotenv
@@ -33,7 +33,10 @@ async def changeStatus(status, isAFK=True):
 
 
 # create flask app
-app = Flask('flask-app')
+app = Flask('flask-app',
+            static_folder='./discord-spoofer-frontend/dist/static',
+            template_folder='./discord-spoofer-frontend/dist'
+            )
 # f'http://127.0.0.1:{FRONTEND_PORT}', f'http://localhost:{FRONTEND_PORT}', i guess these aren't actually needed?
 frontendOrigins = ['http://localhost']
 CORS(app, resources={r"/api/*": {"origins": frontendOrigins}})
@@ -50,9 +53,9 @@ class MyClient(discord.Client):
         print(f'Logged in as {self.user}')
         await changeStatus(discord.Status.invisible)
 
-    @app.route("/")
-    def testing():
-        return "<h1>flask is running</h1>"
+    @app.route('/')
+    def serveFrontend():
+        return render_template("index.html")
     
     @app.route("/api/getStatus", methods=['GET'])
     @cross_origin()

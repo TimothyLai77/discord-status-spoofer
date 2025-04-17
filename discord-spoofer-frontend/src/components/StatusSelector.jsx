@@ -11,7 +11,7 @@ const StatusSelector = () => {
     const handleButtonClick = async (status) => {
         try{
             const json = {newStatus: status, isAfk: true}
-            const reponse = await axios.post('http://127.0.0.1:8081/api/updateStatus', json)
+            const reponse = await axios.post('/api/updateStatus', json)
             // lol i give up, wait 250ms for the backend to finish up
             await new Promise((resolve) => setTimeout(resolve, 250)); 
             await fetchData()
@@ -22,7 +22,7 @@ const StatusSelector = () => {
 
     const fetchData = async () => {
         try{
-            const response = await axios.get("http://localhost:8081/api/getStatus")
+            const response = await axios.get("/api/getStatus")
             const currentStatus = await response.data.currentStatus
             setStatus(currentStatus)
         }catch (error){
