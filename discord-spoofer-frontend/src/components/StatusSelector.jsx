@@ -22,10 +22,8 @@ const StatusSelector = () => {
 
     const fetchData = async () => {
         try{
-            // todo: chnage this to use axios
-            const response = await fetch('http://127.0.0.1:8081/api/getStatus')
-            const result = await response.json()
-            const currentStatus = result.currentStatus
+            const response = await axios.get("http://localhost:8081/api/getStatus")
+            const currentStatus = await response.data.currentStatus
             setStatus(currentStatus)
         }catch (error){
                 console.error('Error:', error);
