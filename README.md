@@ -42,3 +42,6 @@ console.log('%cWorked!', 'font-size: 50px');
 console.log(`%cYou now have your token in the clipboard!`, 'font-size: 16px');
 ```
 * probably best to go into an incog window, use that code snippet, and then CLOSE the browser window, logout revokes the token. 
+
+# Other Notes:
+There's probably some bugs in here, honestly I would rewrite the backend using node instead of python but now I just want a working program.
