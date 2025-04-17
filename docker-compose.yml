@@ -1,6 +1,6 @@
 services:
   app:
-   container_name : discord-status-spoofer
+    container_name : discord-status-spoofer
     build: ./
     restart: unless-stopped
     ports:
