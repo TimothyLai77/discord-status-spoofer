@@ -1,0 +1,7 @@
+services:
+  app:
+   container_name : discord-status-spoofer
+    build: ./
+    restart: unless-stopped
+    ports:
+      - '${PORT:-8081}:${PORT:-8081}'
