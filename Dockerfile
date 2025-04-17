@@ -22,7 +22,7 @@ COPY ./discord-spoofer-frontend/public ./public
 RUN npm run build
 
 # ========= BACKEND STUFF =========
-FROM python:3.13
+FROM python:3.11
 WORKDIR /app
 #copy server code
 COPY ./main.py ./main.py
