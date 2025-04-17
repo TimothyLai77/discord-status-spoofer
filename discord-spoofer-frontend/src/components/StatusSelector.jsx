@@ -6,31 +6,35 @@ import { useEffect, useState } from "react";
 import axios from "axios"
 
 const StatusSelector = () => {
+    const [status, setStatus] = useState([]);
 
     const handleButtonClick = async (status) => {
         try{
             const json = {newStatus: status, isAfk: true}
             const reponse = await axios.post('http://127.0.0.1:8081/api/updateStatus', json)
+            // lol i give up, wait 250ms for the backend to finish up
+            await new Promise((resolve) => setTimeout(resolve, 250)); 
+            await fetchData()
         }catch (error){
             console.error(`Error: ${error}`)
         }
     }
 
-    const [status, setStatus] = useState([]);
+    const fetchData = async () => {
+        try{
+            // todo: chnage this to use axios
+            const response = await fetch('http://127.0.0.1:8081/api/getStatus')
+            const result = await response.json()
+            const currentStatus = result.currentStatus
+            setStatus(currentStatus)
+        }catch (error){
+                console.error('Error:', error);
+                setStatus("error getting status")
+        }
+    }
 
     useEffect(() => {
-        const fetchData = async () => {
-            try{
-                // todo: chnage this to use axios
-                const response = await fetch('http://127.0.0.1:8081/api/getStatus')
-                const result = await response.json()
-                const currentStatus = result.currentStatus
-                setStatus(currentStatus)
-            }catch (error){
-                 console.error('Error:', error);
-                 setStatus("error getting status")
-            }
-        }
+
         fetchData()
     }, []);
 
