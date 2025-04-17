@@ -33,7 +33,10 @@ async def changeStatus(status, isAFK=True):
 
 # create flask app
 app = Flask('flask-app')
-CORS(app)
+# f'http://127.0.0.1:{FRONTEND_PORT}', f'http://localhost:{FRONTEND_PORT}', i guess these aren't actually needed?
+frontendOrigins = ['http://localhost']
+CORS(app, resources={r"/api/*": {"origins": frontendOrigins}})
+
 
 # function to start flask app
 def startFlask():
