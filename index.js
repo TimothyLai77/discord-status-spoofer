@@ -6,14 +6,14 @@ const path = require("path");
 const CLIENT_FRONTEND_PATH = path.join(__dirname, "./", "discord-spoofer-frontend", "dist");
 const PORT = process.env.PORT;
 
-const { Client } = require('discord.js-selfbot-v13');
+const { Client, NewsChannel } = require('discord.js-selfbot-v13');
 const app = express();
-
+app.use(express.json());
 
 const prepareApp = async () => {
     app.set("trust proxy", 1);
-    app.use(express.json());
-    app.use(cors());
+
+  
 
     app.use(express.static(CLIENT_FRONTEND_PATH));
 
@@ -46,15 +46,29 @@ const prepareApp = async () => {
     });
 
     app.post('/api/updateStatus', async (req,res)=>{
-
+        try{
+            // {newStatus: status, isAfk: true}
+            console.log("POST: /api/updateStatus")
+            console.log(req.body)
+            const payload = req.body;
+            const status = payload.newStatus;
+            // TODO: set the status here to resume from on internet outage
+            console.log(`changing to ${status}`)
+            await changeStatus(status);
+            res.send(`changed status to ${status}`,200);
+        }catch{
+            res.status(500);
+            res.send('error')
+        }
     });
 
 
 
 const TOKEN = process.env.TOKEN;
 const client = new Client();
-const changeStatus = (newStatus) => {
+const changeStatus = async (newStatus) => {
     // 'online', 'idle', 'dnd', 'invisible'
+    console.log(`Changing status to: ${newStatus}`)
     client.user.setStatus(newStatus);
 }
 
