@@ -43,7 +43,7 @@ const StatusSelector = () => {
         </Card.Header>
         <Card.Body gap="2">
             <Button onClick={() => handleButtonClick("online")}>online</Button>
-            <Button onClick={() => handleButtonClick("away")}>away</Button>
+            <Button onClick={() => handleButtonClick("idle")}>idle</Button>
             <Button onClick={() => handleButtonClick("dnd")}>do not disturb</Button>
             <Button onClick={() => handleButtonClick("invisible")}>invisible</Button>
         </Card.Body>
