@@ -48,13 +48,13 @@ const StatusSelector = () => {
             <Button onClick={() => handleButtonClick("invisible")}>invisible</Button>
         </Card.Body>
         <Card.Footer justifyContent={"left"}>
-        <Switch.Root>
+        {/* <Switch.Root>
         <Switch.HiddenInput />
             <Switch.Control>
                 <Switch.Thumb />
             </Switch.Control>
             <Switch.Label> AFK Enabled (enable push notifications) (also non functional, all updates will be set with isAFK=true) </Switch.Label>
-        </Switch.Root>
+        </Switch.Root> */}
         </Card.Footer>
     </Card.Root>
   );
