@@ -28,12 +28,13 @@ const prepareApp = async () => {
 }
 
 // GET current status that the account has at the moment
-app.get('/api/status', async (req, res) => {
+app.get('/api/getStatus', async (req, res) => {
     console.log('GET: /api/status')
     try{
         const presence = client.user.presence;
-        const status = presence.status;
-        res.send(status);
+        res.json({
+            currentStatus: presence.status
+        })
     }catch{
         res.status(500);
         res.send('error getting user status')
