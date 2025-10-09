@@ -5,3 +5,7 @@ services:
     restart: unless-stopped
     ports:
       - '${PORT:-8081}:${PORT:-8081}'
+    deploy:
+      resources:
+        limits:
+          memory: 256M # bandaid solution to help with memory, no clue if the app still works... testing for now
