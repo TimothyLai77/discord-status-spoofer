@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "test": "node --test"
+  },
   "dependencies": {
     "cors": "^2.8.5",
     "discord.js-selfbot-v13": "^3.6.1",
