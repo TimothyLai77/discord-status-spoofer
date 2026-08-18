@@ -1,7 +1,6 @@
 require('dotenv').config()
 
 const express = require("express");
-const cors = require("cors");
 const path = require("path");
 const CLIENT_FRONTEND_PATH = path.join(__dirname, "./", "discord-spoofer-frontend", "dist");
 const PORT = process.env.PORT;
@@ -10,9 +9,9 @@ const PORT = process.env.PORT;
 const app = express();
 app.use(express.json());
 
-const { Client } = require('discord.js-selfbot-v13');
+const { DiscordGateway } = require('./lib/discord-gateway');
 const TOKEN = process.env.TOKEN;
-const client = new Client();
+const gateway = new DiscordGateway({ token: TOKEN });
 
 var statusAlreadySet = false;
 var lastStatus = null;
@@ -39,9 +38,11 @@ const prepareApp = async () => {
 app.get('/api/getStatus', async (req, res) => {
     console.log('GET: /api/status')
     try {
-        const presence = client.user.presence;
+        if (!gateway.ready) {
+            throw new Error('gateway not ready');
+        }
         res.json({
-            currentStatus: presence.status
+            currentStatus: gateway.status
         })
     } catch {
         res.status(500);
@@ -50,7 +51,7 @@ app.get('/api/getStatus', async (req, res) => {
 
 });
 
-// update the status {newStatus: "status", isAfk: bool} 
+// update the status {newStatus: "status", isAfk: bool}
 // isAfk is a leftover from the python version, i don't think discord.js supports this?
 app.post('/api/updateStatus', async (req, res) => {
     try {
@@ -69,41 +70,45 @@ app.post('/api/updateStatus', async (req, res) => {
 
 
 /**
- * change status 
+ * change status
  * @param {string} newStatus 'online', 'idle', 'dnd', 'invisible'
  * @param {boolean} isAfk afk to decide if Discord should send a push notification to mobile
  */
 const changeStatus = async (newStatus, isAfk = true) => {
     // 'online', 'idle', 'dnd', 'invisible'
     console.log(`Changing status to: ${newStatus}`)
-    client.user.setPresence(
-        {
-            status: newStatus,
-            afk: isAfk
-        }
-    ) // https://discordjs-self-v13.netlify.app/#/docs/docs/main/typedef/PresenceData
+    await gateway.setPresence(newStatus, isAfk)
     statusAlreadySet = true;
     lastStatus = newStatus;
     lastAfk = isAfk;
 }
 
-client.on('ready', async () => {
-    console.log(`${client.user.username} is ready!`);
+gateway.on('ready', (user) => {
+    console.log(`${user.username} is ready!`);
     changeStatus('online', true); // just default status as online
-
-
 })
-// idk which one to use https://gist.github.com/Iliannnn/6c69605cb6b8cc03f0ab9c885fd39906#apirequest
-client.on('shardReady', (id) => {
+
+// fires when the session is resumed after a reconnect. restore the last
+// status we set, or default to invisible if we never set one.
+gateway.on('resumed', () => {
     if (statusAlreadySet) {
         console.log(`resuming ${lastStatus}`)
         changeStatus(lastStatus, lastAfk)
     } else {
         changeStatus('invisible', true); // default as invisible when resuming
     }
-});
+})
 
-client.login(TOKEN);
+// auth failure (bad token): log and exit so the container restarts cleanly.
+gateway.on('fatal', (err) => {
+    console.error('fatal gateway error:', err.message);
+    process.exit(1);
+})
+
+gateway.connect().catch((err) => {
+    console.error('gateway connect failed:', err.message);
+    process.exit(1);
+});
 
 
 prepareApp();
