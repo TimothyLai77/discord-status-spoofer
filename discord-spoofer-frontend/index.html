@@ -1,16 +1,42 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Update Discord Status</title>
+  <meta name="color-scheme" content="dark" />
+  <title>Discord Status Spoofer</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
-
 <body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
-</body>
+  <main class="app">
+    <section class="card" aria-labelledby="status-heading">
+      <header class="card__header">
+        <div class="avatar" aria-hidden="true">
+          <svg class="avatar__person" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="8.5" r="4" />
+            <path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5v1H4z" />
+          </svg>
+          <span class="avatar__status" id="statusDot"></span>
+        </div>
+        <div class="card__titles">
+          <h1 class="card__title" id="status-heading">Discord Status</h1>
+          <p class="card__subtitle">
+            Current status:
+            <span class="status-value" id="statusValue" aria-live="polite">loading&hellip;</span>
+          </p>
+        </div>
+      </header>
 
+      <div class="card__body">
+        <div class="status-grid" role="group" aria-label="Set status" id="statusGrid">
+          <!-- Buttons are rendered by app.js from STATUS_META so the
+               status list has a single source of truth. -->
+        </div>
+        <p class="card__error" id="error" role="alert" hidden></p>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
 </html>
