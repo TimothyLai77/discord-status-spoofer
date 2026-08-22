@@ -30,6 +30,9 @@ class StubGateway extends EventEmitter {
         this.status = null;
         /** @type {Array<[string, boolean]>} setPresence calls in order. */
         this.presenceCalls = [];
+        /** When true, setPresence rejects like the real gateway does when
+         *  the socket is not open. */
+        this.rejectPresence = false;
     }
 
     /** @returns {Promise<void>} */
@@ -44,7 +47,9 @@ class StubGateway extends EventEmitter {
      * @returns {Promise<void>}
      */
     async setPresence(status, afk = false) {
-        if (!this.ready) throw new Error("gateway is not connected");
+        if (this.rejectPresence || !this.ready) {
+            throw new Error("gateway is not connected");
+        }
         this.presenceCalls.push([status, afk]);
         this.status = status;
     }
@@ -123,6 +128,32 @@ test("after ready: default status is online and updateStatus changes it", async 
     res = await fetch(`${base}/api/getStatus`);
     assert.deepEqual(await res.json(), { currentStatus: "dnd" });
     assert.deepEqual(StubGateway.instance.presenceCalls.at(-1), ["dnd", true]);
+});
+
+test("process survives the gateway emitting 'error' (reconnect failure)", async () => {
+    // index.js must listen for 'error': without a listener the
+    // EventEmitter throws and the process crashes on a failed reconnect.
+    StubGateway.instance.emit("error", new Error("connect failed: network down"));
+    // Give the event loop a tick; previously this killed the process.
+    await new Promise((r) => setTimeout(r, 50));
+    const res = await fetch(`${base}/api/getStatus`);
+    assert.equal(res.status, 200); // stub still ready and serving
+});
+
+test("ready handler tolerates a rejected setPresence", async () => {
+    const stub = StubGateway.instance;
+    // Simulate the socket dying right after READY: setPresence rejects,
+    // exactly like the real gateway when the socket is not open. Previously
+    // that was an unhandled rejection that crashed the process.
+    stub.rejectPresence = true;
+    try {
+        stub.emit("ready", { username: "stub" });
+    } finally {
+        stub.rejectPresence = false;
+    }
+    await new Promise((r) => setTimeout(r, 50));
+    const res = await fetch(`${base}/api/getStatus`);
+    assert.equal(res.status, 200);
 });
 
 // index.js owns the express server for the whole process; end the test

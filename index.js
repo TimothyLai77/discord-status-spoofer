@@ -87,24 +87,54 @@ const changeStatus = async (newStatus, isAfk = true) => {
 
 gateway.on('ready', (user) => {
     console.log(`${user.username} is ready!`);
-    changeStatus('online', true); // just default status as online
+    // .catch: if the socket dies between READY and here, setPresence
+    // rejects — an unhandled rejection would crash the process.
+    changeStatus('online', true).catch((err) => { // just default status as online
+        console.error('failed to set default status:', err.message);
+    })
 })
 
 // fires when the session is resumed after a reconnect. restore the last
 // status we set, or default to invisible if we never set one.
 gateway.on('resumed', () => {
+    const restore = statusAlreadySet
+        ? changeStatus(lastStatus, lastAfk)
+        : changeStatus('invisible', true); // default as invisible when resuming
     if (statusAlreadySet) {
         console.log(`resuming ${lastStatus}`)
-        changeStatus(lastStatus, lastAfk)
-    } else {
-        changeStatus('invisible', true); // default as invisible when resuming
     }
+    restore.catch((err) => {
+        console.error('failed to restore status after resume:', err.message);
+    })
 })
 
 // auth failure (bad token): log and exit so the container restarts cleanly.
 gateway.on('fatal', (err) => {
     console.error('fatal gateway error:', err.message);
     process.exit(1);
+})
+
+// a failed reconnect attempt (e.g. a network blip) surfaces here. This
+// listener is REQUIRED: an unhandled 'error' event on an EventEmitter
+// throws and would crash the process mid-reconnect.
+gateway.on('error', (err) => {
+    console.error('gateway error (will keep retrying):', err.message);
+})
+
+// diagnostics: why the socket dropped and the reconnect backoff schedule.
+// The close codes + reasons are the key to diagnosing session dropouts.
+gateway.on('close', (code) => {
+    console.log(`gateway socket closed (code ${code})`);
+})
+
+gateway.on('reconnecting', ({ reason, delayMs }) => {
+    console.log(`gateway reconnecting in ${delayMs}ms: ${reason}`)
+})
+
+// surface any other unhandled failure with context instead of a bare crash.
+process.on('unhandledRejection', (err) => {
+    console.error('unhandled promise rejection:', err)
+    process.exit(1)
 })
 
 gateway.connect().catch((err) => {

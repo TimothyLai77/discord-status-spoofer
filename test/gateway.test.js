@@ -258,6 +258,25 @@ test("rejects connect() when the socket dies before the session starts", async (
     }
 });
 
+test("a failed reconnect emits 'error' (index.js must listen for it)", async () => {
+    const gateway = await connectReady();
+    const firstSocket = MockWebSocket.instances.at(-1);
+
+    // The next socket (the reconnect attempt) dies before HELLO, so the
+    // reconnect's connect() rejects. Without an 'error' listener on the
+    // gateway, this emit would crash the process.
+    MockWebSocket.failFast = true;
+    try {
+        const errorPromise = waitFor(gateway, "error", 3000);
+        firstSocket.close(4009); // triggers a reconnect at ~20ms
+        const [error] = await errorPromise;
+        assert.match(error.message, /before session started/);
+    } finally {
+        MockWebSocket.failFast = false;
+        gateway.disconnect();
+    }
+});
+
 test("disconnect() prevents reconnection", async () => {
     const gateway = await connectReady();
     const instanceCount = MockWebSocket.instances.length;

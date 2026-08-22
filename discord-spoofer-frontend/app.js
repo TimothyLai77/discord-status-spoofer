@@ -203,12 +203,25 @@ function setButtonsDisabled(disabled) {
   }
 }
 
+/** Milliseconds between automatic status-fetch retries. */
+const RETRY_DELAY_MS = 5000;
+
+/** Pending retry timer, if the last fetch failed. */
+let retryTimer = null;
+
 /**
  * Load the current status and paint the UI. Called on startup and after
- * every successful change to stay in sync with the server.
+ * every successful change to stay in sync with the server. After a failure
+ * it re-runs itself on a timer: the backend returns 500 while the gateway
+ * is still (re)connecting, which is expected right after a container start
+ * or a network blip and clears itself.
  * @returns {Promise<void>}
  */
 async function refresh() {
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
   try {
     const status = await fetchStatus();
     showError(null);
@@ -217,8 +230,10 @@ async function refresh() {
     applyStatus(null, "unavailable");
     showError(
       "Couldn't load your status. " +
-        (err && err.message ? err.message : "Try again.")
+        (err && err.message ? err.message : "Try again.") +
+        " Retrying…"
     );
+    retryTimer = setTimeout(refresh, RETRY_DELAY_MS);
   }
 }
 
