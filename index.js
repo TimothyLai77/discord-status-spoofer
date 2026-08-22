@@ -54,7 +54,9 @@ app.get('/api/getStatus', async (req, res) => {
 });
 
 // update the status {newStatus: "status", isAfk: bool}
-// isAfk is a leftover from the python version, i don't think discord.js supports this?
+// isAfk maps to the afk field of the op 4 presence frame. It is a leftover
+// from the python version and is always false now (matches the official
+// client); the UI's isAfk flag is accepted but intentionally ignored.
 app.post('/api/updateStatus', async (req, res) => {
     try {
         // {newStatus: status, isAfk: true}
@@ -74,9 +76,11 @@ app.post('/api/updateStatus', async (req, res) => {
 /**
  * change status
  * @param {string} newStatus 'online', 'idle', 'dnd', 'invisible'
- * @param {boolean} isAfk afk to decide if Discord should send a push notification to mobile
+ * @param {boolean} [isAfk] the afk field of the op 4 frame; keep false,
+ *   matching the official client (afk:true is a leftover that does nothing
+ *   useful for this app)
  */
-const changeStatus = async (newStatus, isAfk = true) => {
+const changeStatus = async (newStatus, isAfk = false) => {
     // 'online', 'idle', 'dnd', 'invisible'
     console.log(`Changing status to: ${newStatus}`)
     await gateway.setPresence(newStatus, isAfk)
@@ -89,7 +93,7 @@ gateway.on('ready', (user) => {
     console.log(`${user.username} is ready!`);
     // .catch: if the socket dies between READY and here, setPresence
     // rejects — an unhandled rejection would crash the process.
-    changeStatus('online', true).catch((err) => { // just default status as online
+    changeStatus('online').catch((err) => { // just default status as online
         console.error('failed to set default status:', err.message);
     })
 })
@@ -99,7 +103,7 @@ gateway.on('ready', (user) => {
 gateway.on('resumed', () => {
     const restore = statusAlreadySet
         ? changeStatus(lastStatus, lastAfk)
-        : changeStatus('invisible', true); // default as invisible when resuming
+        : changeStatus('invisible'); // default as invisible when resuming
     if (statusAlreadySet) {
         console.log(`resuming ${lastStatus}`)
     }

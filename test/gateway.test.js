@@ -170,7 +170,13 @@ test("setPresence sends op 4 and tracks the status", async () => {
     const frame = socket.sent.at(-1);
     assert.deepEqual(frame, {
         op: 4,
-        d: { status: "dnd", afk: false, since: null, activities: [] },
+        d: {
+            status: "dnd",
+            afk: false,
+            since: 0,
+            activities: [],
+            client_status: { web: false, desktop: true, mobile: false },
+        },
     });
     assert.equal(gateway.status, "dnd");
     gateway.disconnect();

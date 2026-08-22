@@ -127,7 +127,7 @@ test("after ready: default status is online and updateStatus changes it", async 
 
     res = await fetch(`${base}/api/getStatus`);
     assert.deepEqual(await res.json(), { currentStatus: "dnd" });
-    assert.deepEqual(StubGateway.instance.presenceCalls.at(-1), ["dnd", true]);
+    assert.deepEqual(StubGateway.instance.presenceCalls.at(-1), ["dnd", false]);
 });
 
 test("process survives the gateway emitting 'error' (reconnect failure)", async () => {
