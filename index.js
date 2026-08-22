@@ -2,7 +2,9 @@ require('dotenv').config()
 
 const express = require("express");
 const path = require("path");
-const CLIENT_FRONTEND_PATH = path.join(__dirname, "./", "discord-spoofer-frontend", "dist");
+// The frontend is plain HTML/CSS/JS (no build step), served straight from
+// this directory.
+const CLIENT_FRONTEND_PATH = path.join(__dirname, "discord-spoofer-frontend");
 const PORT = process.env.PORT;
 
 

@@ -1,8 +1,9 @@
 # Discord Status Spoofer:
 I want my Discord status to be set as one status and to not update.
-This is a Node/Express program with a React frontend to pick a status. It
-speaks the official Discord Gateway protocol directly (`lib/discord-gateway.js`)
-using Node's built-in WebSocket — no selfbot library involved.
+This is a Node/Express program with a small static frontend (plain
+HTML/CSS/JS, no build step) to pick a status. It speaks the official Discord
+Gateway protocol directly (`lib/discord-gateway.js`) using Node's built-in
+WebSocket — no selfbot library involved.
 
 ![demo](/readme_resources/example.gif)
 
@@ -12,9 +13,7 @@ using Node's built-in WebSocket — no selfbot library involved.
 
 # Setup (no docker):
 1. `npm i`
-2. `cd discord-spoofer-frontend` and `npm i`
-3. `npm run build`
-4. return to project root and `node index.js`
+2. `node index.js` (set the `PORT` env var first, see `env_template.txt`)
 
 # Testing
 `npm test` runs the gateway protocol + API surface tests (no token or network

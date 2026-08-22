@@ -1,0 +1,253 @@
+/* ============================================================
+   Discord Status Spoofer — plain CSS, Discord dark design
+   language. No framework, no build step.
+   ============================================================ */
+
+:root {
+  /* Discord dark theme palette */
+  --bg-darkest: #1e1f22;   /* page background (like the server list) */
+  --bg-primary: #2b2d31;   /* card / member list surface */
+  --bg-secondary: #313338; /* raised surfaces, inputs */
+  --bg-tertiary: #383a40;  /* hover fills */
+  --bg-modifier: #404249;  /* button base */
+
+  --text-primary: #f2f3f5;
+  --text-secondary: #dbdee1;
+  --text-muted: #949ba4;
+
+  --blurple: #5865f2;
+  --blurple-hover: #4752c4;
+
+  /* Discord presence colors */
+  --status-online: #23a55a;
+  --status-idle: #f0b232;
+  --status-dnd: #f23f43;
+  --status-invisible: #80848e;
+
+  --radius: 8px;
+  --font: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg-darkest);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.4;
+  /* subtle vignette so the page doesn't read as flat black */
+  background-image: radial-gradient(
+    1200px 600px at 50% -10%,
+    rgba(88, 101, 242, 0.08),
+    transparent 60%
+  );
+}
+
+/* Center the card on the page */
+.app {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+/* ---------------- Card ---------------- */
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-primary);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.card__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  background: var(--bg-secondary);
+}
+
+.card__body {
+  padding: 20px 24px 24px;
+}
+
+.card__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.card__subtitle {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Status value is tinted with the active presence color by app.js
+   (see data-status on <body>). */
+.status-value {
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+/* ---------------- Avatar + status dot ---------------- */
+
+.avatar {
+  position: relative;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--blurple), #7983f5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.avatar__person {
+  width: 36px;
+  height: 36px;
+}
+
+/* The little presence indicator, bottom-right of the avatar,
+   ringed in the surface color so it reads as one badge. */
+.avatar__status {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--status-invisible);
+  border: 4px solid var(--bg-secondary);
+  transition: background 120ms ease;
+}
+
+/* Tint the avatar dot + status text to match the active status. */
+body[data-status="online"] .avatar__status,
+body[data-status="online"] .status-value {
+  background: var(--status-online);
+  color: var(--status-online);
+}
+
+body[data-status="idle"] .avatar__status,
+body[data-status="idle"] .status-value {
+  background: var(--status-idle);
+  color: var(--status-idle);
+}
+
+body[data-status="dnd"] .avatar__status,
+body[data-status="dnd"] .status-value {
+  background: var(--status-dnd);
+  color: var(--status-dnd);
+}
+
+body[data-status="invisible"] .avatar__status,
+body[data-status="invisible"] .status-value {
+  background: var(--status-invisible);
+  color: var(--status-invisible);
+}
+
+/* ---------------- Status buttons ---------------- */
+
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.status-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 9999px; /* Discord pill buttons */
+  background: var(--bg-modifier);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease,
+    transform 60ms ease;
+}
+
+.status-btn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+}
+
+.status-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.status-btn:focus-visible {
+  outline: 2px solid var(--blurple);
+  outline-offset: 2px;
+}
+
+/* The currently-active status gets the blurple treatment. */
+.status-btn[aria-pressed="true"] {
+  background: var(--blurple);
+  border-color: var(--blurple);
+}
+
+.status-btn[aria-pressed="true"]:hover:not(:disabled) {
+  background: var(--blurple-hover);
+}
+
+.status-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.status-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.status-btn__icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---------------- Error message ---------------- */
+
+.card__error {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: rgba(242, 63, 67, 0.12);
+  border: 1px solid rgba(242, 63, 67, 0.4);
+  color: #fa777c;
+  font-size: 13px;
+}
+
+/* Small screens: one button per row */
+@media (max-width: 380px) {
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+}
