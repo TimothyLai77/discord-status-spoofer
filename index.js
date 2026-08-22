@@ -123,8 +123,8 @@ gateway.on('error', (err) => {
 
 // diagnostics: why the socket dropped and the reconnect backoff schedule.
 // The close codes + reasons are the key to diagnosing session dropouts.
-gateway.on('close', (code) => {
-    console.log(`gateway socket closed (code ${code})`);
+gateway.on('close', (code, reason) => {
+    console.log(`gateway socket closed (code ${code}${reason ? ` reason: ${reason}` : ""})`);
 })
 
 gateway.on('reconnecting', ({ reason, delayMs }) => {
