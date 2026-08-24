@@ -54,7 +54,7 @@ app.get('/api/getStatus', async (req, res) => {
 });
 
 // update the status {newStatus: "status", isAfk: bool}
-// isAfk maps to the afk field of the op 4 presence frame. It is a leftover
+// isAfk maps to the afk field of the op 3 presence frame. It is a leftover
 // from the python version and is always false now (matches the official
 // client); the UI's isAfk flag is accepted but intentionally ignored.
 app.post('/api/updateStatus', async (req, res) => {
@@ -76,7 +76,7 @@ app.post('/api/updateStatus', async (req, res) => {
 /**
  * change status
  * @param {string} newStatus 'online', 'idle', 'dnd', 'invisible'
- * @param {boolean} [isAfk] the afk field of the op 4 frame; keep false,
+ * @param {boolean} [isAfk] the afk field of the op 3 frame; keep false,
  *   matching the official client (afk:true is a leftover that does nothing
  *   useful for this app)
  */

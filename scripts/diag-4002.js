@@ -11,6 +11,9 @@
  *   node scripts/diag-4002.js docs        # documented Update Status shape, no client_status
  *   node scripts/diag-4002.js current     # the app's pre-9fa039b frame (afk:true, since:null)
  *   node scripts/diag-4002.js official    # the app's current frame (with client_status)
+ *   node scripts/diag-4002.js op3         # documented Presence Update OPCODE (3) — every
+ *                                         # op 4 variant above dies with 4002, so the opcode
+ *                                         # itself is the suspect (discord.js uses op 3)
  *
  * NOTE: run with the app container STOPPED. The app's reconnect loop creates
  * a fresh session every few seconds, and the server may refuse new sessions
@@ -35,8 +38,8 @@ const OBSERVE_MS = 120_000;
 const PRESENCE_VARIANTS = {
     // Absolute minimum: just the status field.
     minimal: { status: "online" },
-    // The documented Update Status shape (status/since/activities/afk),
-    // WITHOUT client_status (not a documented op 4 field).
+    // The documented presence payload shape (status/since/activities/afk),
+    // WITHOUT client_status (not a documented presence field).
     docs: { status: "online", afk: false, since: 0, activities: [] },
     // The app's frame before 9fa039b (afk leftover true, since null).
     current: { status: "online", afk: true, since: null, activities: [] },
@@ -51,8 +54,8 @@ const PRESENCE_VARIANTS = {
 };
 
 const mode = process.argv[2];
-if (!mode || !(mode === "none" || mode in PRESENCE_VARIANTS)) {
-    console.error("usage: node scripts/diag-4002.js none|current|official");
+if (!mode || !(mode === "none" || mode === "op3" || mode in PRESENCE_VARIANTS)) {
+    console.error("usage: node scripts/diag-4002.js none|minimal|docs|current|official|op3");
     process.exit(2);
 }
 const token = process.env.TOKEN;
@@ -126,9 +129,15 @@ const t0 = Date.now();
             ready = true;
             log(`READY (session ${p.d.session_id}, user ${p.d.user.username})`);
             if (mode !== "none") {
-                const frame = { op: 4, d: PRESENCE_VARIANTS[mode] };
+                // op3 mode: the documented "Presence Update" opcode (3) with
+                // the payload shape discord.js sends (since:null when online).
+                // All op 4 (Voice State Update) variants die with 4002 — the
+                // opcode, not the payload, is under test here.
+                const frame = mode === "op3"
+                    ? { op: 3, d: { status: "online", since: null, afk: false, activities: [] } }
+                    : { op: 4, d: PRESENCE_VARIANTS[mode] };
                 ws.send(JSON.stringify(frame));
-                log(`-> op 4 presence [${mode}]: ${JSON.stringify(frame.d)}`);
+                log(`-> op ${frame.op} presence [${mode}]: ${JSON.stringify(frame.d)}`);
             } else {
                 log("mode=none: intentionally sending NO presence update");
             }

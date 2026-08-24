@@ -73,7 +73,7 @@ class MockWebSocket {
             case 1: // HEARTBEAT
                 this.push({ op: 11, d: null });
                 break;
-            case 4: // PRESENCE_UPDATE — echo the server's view
+            case 3: // PRESENCE_UPDATE — echo the server's view
                 this.push({
                     op: 0, s: 3, t: "PRESENCE_UPDATE",
                     d: { user: { id: MockWebSocket.USER.id }, status: frame.d.status },
@@ -161,24 +161,33 @@ test("setPresence rejects before the socket is open", async () => {
     await assert.rejects(gateway.setPresence("bogus"), /invalid status/);
 });
 
-test("setPresence sends op 4 and tracks the status", async () => {
+test("setPresence sends op 3 (Presence Update) and tracks the status", async () => {
     const gateway = await connectReady();
     const socket = MockWebSocket.instances.at(-1);
 
+    const before = Date.now();
     await gateway.setPresence("dnd", false);
+    const after = Date.now();
 
+    // Regression: opcode 4 ("Voice State Update") is not a presence opcode —
+    // the gateway rejects presence payloads on it with 4002 for user
+    // sessions. Presence must go out on opcode 3.
     const frame = socket.sent.at(-1);
-    assert.deepEqual(frame, {
-        op: 4,
-        d: {
-            status: "dnd",
-            afk: false,
-            since: 0,
-            activities: [],
-            client_status: { web: false, desktop: true, mobile: false },
-        },
-    });
+    assert.equal(frame.op, 3);
+    assert.equal(frame.d.status, "dnd");
+    assert.equal(frame.d.afk, false);
+    assert.deepEqual(frame.d.activities, []);
+    assert.ok(
+        frame.d.since >= before && frame.d.since <= after,
+        "non-online status carries a since timestamp"
+    );
     assert.equal(gateway.status, "dnd");
+
+    await gateway.setPresence("online", false);
+    const onlineFrame = socket.sent.at(-1);
+    assert.equal(onlineFrame.op, 3);
+    assert.equal(onlineFrame.d.since, null, "online sends since:null like the working client");
+    assert.equal(gateway.status, "online");
     gateway.disconnect();
 });
 
@@ -227,7 +236,7 @@ test("resumes the session after a reconnect (no re-identify)", async () => {
     assert.ok(resume, "expected a RESUME frame");
     assert.equal(resume.d.token, "token-123");
     assert.equal(resume.d.session_id, "session-1");
-    // READY is s:1; the mock's PRESENCE_UPDATE echo for the op-4 frame is s:3.
+    // READY is s:1; the mock's PRESENCE_UPDATE echo for the op-3 frame is s:3.
     assert.equal(resume.d.seq, 3);
     assert.ok(!secondSocket.sent.some((f) => f.op === 2), "must not re-IDENTIFY");
     assert.equal(gateway.status, "idle"); // presence survived the resume
