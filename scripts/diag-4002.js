@@ -4,7 +4,10 @@
  * One-off diagnostic: isolate what triggers the 4002 ("decode error") close
  * that happens a few seconds after READY.
  *
- * Usage (inside the container image; token comes from the baked-in .env):
+ * Usage (inside the container image; the token is passed at runtime — it
+ * is no longer baked into the image, see .dockerignore):
+ *
+ *   docker run --rm --env-file .env <image> node scripts/diag-4002.js <mode>
  *
  *   node scripts/diag-4002.js none        # connect + READY, send NO presence update (control)
  *   node scripts/diag-4002.js minimal     # op 4 with only {status}

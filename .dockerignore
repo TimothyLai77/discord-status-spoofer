@@ -1,0 +1,27 @@
+# --- Secrets: must never enter the image. The token is provided at
+# --- runtime via `env_file` in docker-compose.yml (or `--env-file .env` /
+# --- `-e TOKEN` with plain docker run).
+.env
+.env.*
+*.pem
+*.key
+
+# --- VCS / editor clutter
+.git/
+.gitignore
+.DS_Store
+.vscode/
+
+# --- Host dependencies; `RUN npm install` in the Dockerfile rebuilds
+# --- these from package-lock.json.
+node_modules/
+
+# --- Dev-only; not needed by the running app.
+# --- (scripts/ is intentionally kept: it holds the diag-4002 tool, which
+# --- is run from inside the image with the token passed at runtime.)
+docs/
+test/
+readme_resources/
+env_template.txt
+Dockerfile
+docker-compose*.yml

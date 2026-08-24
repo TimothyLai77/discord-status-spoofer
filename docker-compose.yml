@@ -3,6 +3,11 @@ services:
     container_name : discord-status-spoofer
     build: ./
     restart: unless-stopped
+    # Token (and PORT) are injected at runtime from the .env that lives
+    # next to this compose file — never baked into the image (see
+    # .dockerignore).
+    env_file:
+      - .env
     ports:
       - '${PORT:-8081}:${PORT:-8081}'
     deploy:
