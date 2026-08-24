@@ -1,2 +1,4 @@
 TOKEN='your-token'
-PORT=80
+# must be > 1024: the container runs as an unprivileged user
+# (default uid 1000; override with APP_UID/APP_GID in this file)
+PORT=8081
