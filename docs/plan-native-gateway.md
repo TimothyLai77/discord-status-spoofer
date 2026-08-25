@@ -8,7 +8,11 @@ runs Node 24, which has a built-in global `WebSocket`.
 
 ## Background / constraints
 - Discord has **no REST endpoint for presence**. Status can only be changed via
-  Gateway opcode 4 (`Update Status`). Confirmed against the official API docs.
+  Gateway opcode 3 (`Presence Update`). Confirmed against the official API docs.
+  Caution: opcode 4 is `Voice State Update` (join/move/leave voice channels),
+  *not* a presence opcode — the original draft of this plan misread it as
+  "Update Status", and sending a presence payload on op 4 dies with
+  4002 "Error while decoding payload" (see `scripts/diag-4002.js`).
 - The app currently uses only 3 things from the library (all in `index.js`):
   1. `client.user.presence.status` → read current status
   2. `client.user.setPresence({ status, afk })` → change status
@@ -30,8 +34,10 @@ A small `DiscordGateway` class extending `EventEmitter`:
 - Heartbeat: op 1 every `heartbeat_interval`, last `seq` (null before any
   dispatch). Handle server-requested heartbeats (op 1) immediately. If no
   `HEARTBEAT ACK` (op 11) arrives within 2× the interval, force a reconnect.
-- `setPresence(status, afk)` → send op 4
-  `{"status": <s>, "afk": <a>, "since": null, "activities": []}`.
+- `setPresence(status, afk)` → send op 3
+  `{"status": <s>, "afk": <a>, "since": null | <now>, "activities": []}`
+  (`since` is `null` while online, a timestamp of when the status started
+  otherwise).
   Rejects if not connected. Resolves once the frame is sent.
 - Status tracking: `this.status` is set optimistically by `setPresence` and
   reconciled from `PRESENCE_UPDATE` dispatches for our own user id.

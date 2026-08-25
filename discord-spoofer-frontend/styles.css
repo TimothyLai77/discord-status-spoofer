@@ -140,28 +140,40 @@ body {
   transition: background 120ms ease;
 }
 
-/* Tint the avatar dot + status text to match the active status. */
-body[data-status="online"] .avatar__status,
-body[data-status="online"] .status-value {
+/* Tint the avatar dot + status text to match the active status.
+   The dot takes the status color as its background; the label keeps a
+   transparent background and only takes the status color as its text
+   color (painting the label's background too made it read as a solid
+   block of color with the text hidden inside it). */
+body[data-status="online"] .avatar__status {
   background: var(--status-online);
+}
+
+body[data-status="online"] .status-value {
   color: var(--status-online);
 }
 
-body[data-status="idle"] .avatar__status,
-body[data-status="idle"] .status-value {
+body[data-status="idle"] .avatar__status {
   background: var(--status-idle);
+}
+
+body[data-status="idle"] .status-value {
   color: var(--status-idle);
 }
 
-body[data-status="dnd"] .avatar__status,
-body[data-status="dnd"] .status-value {
+body[data-status="dnd"] .avatar__status {
   background: var(--status-dnd);
+}
+
+body[data-status="dnd"] .status-value {
   color: var(--status-dnd);
 }
 
-body[data-status="invisible"] .avatar__status,
-body[data-status="invisible"] .status-value {
+body[data-status="invisible"] .avatar__status {
   background: var(--status-invisible);
+}
+
+body[data-status="invisible"] .status-value {
   color: var(--status-invisible);
 }
 

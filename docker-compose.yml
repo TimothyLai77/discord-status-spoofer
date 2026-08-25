@@ -3,6 +3,16 @@ services:
     container_name : discord-status-spoofer
     build: ./
     restart: unless-stopped
+    # Token (and PORT) are injected at runtime from the .env that lives
+    # next to this compose file — never baked into the image (see
+    # .dockerignore).
+    env_file:
+      - .env
+    # Runtime user (uid:gid). Defaults to the image's unprivileged `node`
+    # user (1000:1000, see Dockerfile). Override by setting APP_UID /
+    # APP_GID in .env (or editing the defaults here). Plain numeric uids
+    # are fine even without a matching /etc/passwd entry in the image.
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     ports:
       - '${PORT:-8081}:${PORT:-8081}'
     deploy:
