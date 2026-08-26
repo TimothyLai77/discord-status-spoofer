@@ -54,17 +54,19 @@ app.get('/api/getStatus', async (req, res) => {
 });
 
 // update the status {newStatus: "status", isAfk: bool}
-// isAfk maps to the afk field of the op 3 presence frame. It is a leftover
-// from the python version and is always false now (matches the official
-// client); the UI's isAfk flag is accepted but intentionally ignored.
+// isAfk maps to the afk field of the op 3 presence frame. Discord uses it
+// to decide whether the account is "away": with afk:true the mobile app
+// resumes push notifications even while the account stays online. The UI
+// sends isAfk:true on every change for exactly that reason.
 app.post('/api/updateStatus', async (req, res) => {
     try {
         // {newStatus: status, isAfk: true}
         console.log("POST: /api/updateStatus")
         const payload = req.body;
         const status = payload.newStatus;
+        const isAfk = payload.isAfk === true;
         // TODO: set the status here to resume from on internet outage
-        await changeStatus(status);
+        await changeStatus(status, isAfk);
         res.send(`changed status to ${status}`, 200);
     } catch {
         res.status(500);
@@ -76,9 +78,9 @@ app.post('/api/updateStatus', async (req, res) => {
 /**
  * change status
  * @param {string} newStatus 'online', 'idle', 'dnd', 'invisible'
- * @param {boolean} [isAfk] the afk field of the op 3 frame; keep false,
- *   matching the official client (afk:true is a leftover that does nothing
- *   useful for this app)
+ * @param {boolean} [isAfk] the afk field of the op 3 frame. true marks the
+ *   account away — the state that makes the mobile app send push
+ *   notifications (the official client sends the same frame when away).
  */
 const changeStatus = async (newStatus, isAfk = false) => {
     // 'online', 'idle', 'dnd', 'invisible'

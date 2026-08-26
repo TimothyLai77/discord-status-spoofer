@@ -130,6 +130,19 @@ test("after ready: default status is online and updateStatus changes it", async 
     assert.deepEqual(StubGateway.instance.presenceCalls.at(-1), ["dnd", false]);
 });
 
+test("updateStatus passes isAfk through to setPresence", async () => {
+    // Regression: the UI sends isAfk:true on every status change so the
+    // account reads as away and mobile push notifications keep firing. The
+    // handler must not drop the flag (it did, which silenced pushes).
+    const res = await fetch(`${base}/api/updateStatus`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newStatus: "online", isAfk: true }),
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual(StubGateway.instance.presenceCalls.at(-1), ["online", true]);
+});
+
 test("process survives the gateway emitting 'error' (reconnect failure)", async () => {
     // index.js must listen for 'error': without a listener the
     // EventEmitter throws and the process crashes on a failed reconnect.

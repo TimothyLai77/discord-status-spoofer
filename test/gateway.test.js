@@ -191,6 +191,30 @@ test("setPresence sends op 3 (Presence Update) and tracks the status", async () 
     gateway.disconnect();
 });
 
+test("setPresence online+afk sends a since timestamp (away state)", async () => {
+    const gateway = await connectReady();
+    const socket = MockWebSocket.instances.at(-1);
+
+    const before = Date.now();
+    await gateway.setPresence("online", true);
+    const after = Date.now();
+
+    // Regression: afk:true is what makes Discord's mobile app send push
+    // notifications. Like the official client and discord.js, the away
+    // state must carry an "away since" timestamp even while the status is
+    // online — since:null + afk:true is a state the official client never
+    // sends, and the account would not read as away.
+    const frame = socket.sent.at(-1);
+    assert.equal(frame.op, 3);
+    assert.equal(frame.d.status, "online");
+    assert.equal(frame.d.afk, true);
+    assert.ok(
+        frame.d.since >= before && frame.d.since <= after,
+        "online+afk carries a since timestamp"
+    );
+    gateway.disconnect();
+});
+
 test("server PRESENCE_UPDATE reconciles the tracked status", async () => {
     const gateway = await connectReady();
     const socket = MockWebSocket.instances.at(-1);

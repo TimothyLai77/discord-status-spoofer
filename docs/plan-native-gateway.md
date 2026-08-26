@@ -36,8 +36,9 @@ A small `DiscordGateway` class extending `EventEmitter`:
   `HEARTBEAT ACK` (op 11) arrives within 2× the interval, force a reconnect.
 - `setPresence(status, afk)` → send op 3
   `{"status": <s>, "afk": <a>, "since": null | <now>, "activities": []}`
-  (`since` is `null` while online, a timestamp of when the status started
-  otherwise).
+  (`since` is `null` only while online and not away, a timestamp of when the
+  state started otherwise — the away-since timestamp is what makes Discord's
+  mobile app send push notifications).
   Rejects if not connected. Resolves once the frame is sent.
 - Status tracking: `this.status` is set optimistically by `setPresence` and
   reconciled from `PRESENCE_UPDATE` dispatches for our own user id.
@@ -74,8 +75,7 @@ no real token needed.
 ## Out of scope
 - ToS status is unchanged: a personal token over the Gateway is still a
   self-bot (see README). This only removes the old library.
-- Sharding (never used), compression, activity/emoji presence, afk push
-  notifications.
+- Sharding (never used), compression, activity/emoji presence.
 
 ## Commit cadence
 1. Plan (this file)
