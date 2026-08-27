@@ -109,10 +109,17 @@ test("updateStatus returns 500 before the gateway is ready", async () => {
     assert.equal(res.status, 500);
 });
 
-test("after ready: default status is online and updateStatus changes it", async () => {
+test("after ready: default status is online+away (afk) and updateStatus changes it", async () => {
     StubGateway.instance.becomeReady();
-    // Let the ready handler's changeStatus('online') microtask settle.
+    // Let the ready handler's changeStatus('online', true) microtask settle.
     await new Promise((r) => setTimeout(r, 50));
+
+    // Regression: the startup default must mark the account away (afk:true).
+    // That state is what makes Discord dispatch mobile push notifications,
+    // and after a restart nothing re-arms it except a UI click — so
+    // starting online+afk:false silently killed all pushes (PR #13).
+    // No earlier test records a presence call, so at(0) is the ready call.
+    assert.deepEqual(StubGateway.instance.presenceCalls.at(0), ["online", true]);
 
     let res = await fetch(`${base}/api/getStatus`);
     assert.equal(res.status, 200);

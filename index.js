@@ -93,9 +93,14 @@ const changeStatus = async (newStatus, isAfk = false) => {
 
 gateway.on('ready', (user) => {
     console.log(`${user.username} is ready!`);
+    // Default to online AND away (afk:true). The op 3 docs say afk is
+    // "used to determine whether to dispatch mobile push notifications",
+    // and nothing else re-arms the away state after a start except a UI
+    // click (which also sends isAfk:true). Starting online+afk:false
+    // silently killed pushes until someone opened the UI (PR #13).
     // .catch: if the socket dies between READY and here, setPresence
     // rejects — an unhandled rejection would crash the process.
-    changeStatus('online').catch((err) => { // just default status as online
+    changeStatus('online', true).catch((err) => { // default: online + away
         console.error('failed to set default status:', err.message);
     })
 })
