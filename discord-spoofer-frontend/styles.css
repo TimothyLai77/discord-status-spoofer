@@ -257,8 +257,17 @@ body[data-status="invisible"] .status-value {
   font-size: 13px;
 }
 
+/* ---------------- Hint (official-client priority) ---------------- */
+
+.card__hint {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
 /* Small screens: one button per row */
-@media (max-width: 380px) {
+@media (maxwidth: 380px) {
   .status-grid {
     grid-template-columns: 1fr;
   }
