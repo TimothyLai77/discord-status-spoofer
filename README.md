@@ -7,6 +7,27 @@ WebSocket — no selfbot library involved.
 
 ![demo](/readme_resources/example.gif)
 
+# Important: official clients take priority over this app
+
+This app sets your status over the official Gateway protocol, and Discord
+always *accepts* those updates. But the status that actually shows (to other
+users and in the official clients) is decided by Discord's **session
+priority**: an active official client session — especially the desktop app —
+always outranks this app's gateway session.
+
+In practice:
+
+- **No official client running** — the status set here is your status. It is
+  kept, and takes over the moment the last official client is closed.
+- **An official client (desktop app) is open** — that client's status wins.
+  Your change here is stored by Discord but not shown while the client runs.
+
+This is not a bug in the app: Discord authenticates its official clients
+beyond what a gateway session can replicate, and a session that identifies
+as the desktop client still loses to a real one (verified October 2026,
+see `scripts/diag-desktop-priority.js`). To pin a status, keep the official
+clients closed.
+
 # Setup (docker):
 1. copy the `env_template.txt` as `.env` and fill in the fields
 2. `docker compose up -d` to run
