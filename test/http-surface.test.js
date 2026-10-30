@@ -28,6 +28,8 @@ class StubGateway extends EventEmitter {
         this.token = options.token;
         this.ready = false;
         this.status = null;
+        /** @type {Object|null} READY user object, like the real gateway stores. */
+        this.user = null;
         /** @type {Array<[string, boolean]>} setPresence calls in order. */
         this.presenceCalls = [];
         /** When true, setPresence rejects like the real gateway does when
@@ -57,7 +59,8 @@ class StubGateway extends EventEmitter {
     /** Test helper: pretend the gateway became ready. */
     becomeReady() {
         this.ready = true;
-        this.emit("ready", { username: "stub" });
+        this.user = { id: "123456789012345678", username: "stubuser", global_name: "Stub User" };
+        this.emit("ready", this.user);
     }
 }
 
@@ -100,6 +103,11 @@ test("getStatus returns 500 before the gateway is ready", async () => {
     assert.equal(res.status, 500);
 });
 
+test("getUser returns 500 before the gateway is ready", async () => {
+    const res = await fetch(`${base}/api/getUser`);
+    assert.equal(res.status, 500);
+});
+
 test("updateStatus returns 500 before the gateway is ready", async () => {
     const res = await fetch(`${base}/api/updateStatus`, {
         method: "POST",
@@ -135,6 +143,12 @@ test("after ready: default status is online+away (afk) and updateStatus changes 
     res = await fetch(`${base}/api/getStatus`);
     assert.deepEqual(await res.json(), { currentStatus: "dnd" });
     assert.deepEqual(StubGateway.instance.presenceCalls.at(-1), ["dnd", false]);
+});
+
+test("getUser returns the READY username after ready", async () => {
+    const res = await fetch(`${base}/api/getUser`);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { username: "stubuser" });
 });
 
 test("updateStatus passes isAfk through to setPresence", async () => {

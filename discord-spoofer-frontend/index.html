@@ -9,7 +9,7 @@
 </head>
 <body>
   <main class="app">
-    <section class="card" aria-labelledby="status-heading">
+    <section class="card" aria-labelledby="userName">
       <header class="card__header">
         <div class="avatar" aria-hidden="true">
           <svg class="avatar__person" viewBox="0 0 24 24" fill="currentColor">
@@ -19,7 +19,9 @@
           <span class="avatar__status" id="statusDot"></span>
         </div>
         <div class="card__titles">
-          <h1 class="card__title" id="status-heading">Discord Status</h1>
+          <!-- The account's Discord username, filled in by app.js from
+               GET /api/getUser (the gateway's READY user object). -->
+          <h1 class="card__title" id="userName" aria-live="polite">loading&hellip;</h1>
           <p class="card__subtitle">
             Current status:
             <span class="status-value" id="statusValue" aria-live="polite">loading&hellip;</span>

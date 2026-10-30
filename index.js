@@ -53,6 +53,25 @@ app.get('/api/getStatus', async (req, res) => {
 
 });
 
+// GET the account this token belongs to. The name comes from the READY
+// payload the gateway stores on gateway.user; before READY arrives there is
+// nothing to report, so this 500s exactly like getStatus does.
+app.get('/api/getUser', async (req, res) => {
+    console.log('GET: /api/getUser')
+    try {
+        if (!gateway.ready || !gateway.user) {
+            throw new Error('gateway not ready');
+        }
+        res.json({
+            username: gateway.user.username
+        })
+    } catch {
+        res.status(500);
+        res.send('error getting user name')
+    }
+
+});
+
 // update the status {newStatus: "status", isAfk: bool}
 // isAfk maps to the afk field of the op 3 presence frame. Discord uses it
 // to decide whether the account is "away": with afk:true the mobile app

@@ -85,11 +85,20 @@ body {
   padding: 20px 24px 24px;
 }
 
+.card__titles {
+  /* The username is variable-length content: min-width:0 lets this column
+     shrink below its text's natural width so long names wrap inside the
+     card instead of pushing the avatar out. */
+  min-width: 0;
+}
+
 .card__title {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
+  /* Usernames have no spaces, so break-word is what keeps them in bounds. */
+  overflow-wrap: break-word;
 }
 
 .card__subtitle {

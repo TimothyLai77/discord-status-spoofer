@@ -3,13 +3,15 @@
  *
  * Plain browser JavaScript, no build step and no dependencies. Talks to the
  * Express API with `fetch`:
+ *   - GET  /api/getUser       -> { username }
  *   - GET  /api/getStatus     -> { currentStatus }
  *   - POST /api/updateStatus  -> { newStatus, isAfk }
  *
- * The UI mirrors Discord's own status picker: a card with the account avatar
- * (showing a live presence dot) and one pill button per status. The active
- * status is highlighted in blurple and its presence color tints the avatar
- * dot and the "Current status" label (see styles.css).
+ * The UI mirrors Discord's own status picker: a card headed by the account's
+ * Discord username and avatar (showing a live presence dot), with one pill
+ * button per status. The active status is highlighted in blurple and its
+ * presence color tints the avatar dot and the "Current status" label (see
+ * styles.css).
  */
 
 "use strict";
@@ -89,9 +91,22 @@ for (const [key, meta] of Object.entries(STATUS_META)) {
 
 /**
  * Cache of the DOM nodes we touch, resolved once on load.
- * @type {{grid: HTMLElement, value: HTMLElement, error: HTMLElement}}
+ * @type {{grid: HTMLElement, value: HTMLElement, user: HTMLElement, error: HTMLElement}}
  */
 let els = null;
+
+/**
+ * Fetch the account's Discord username from the API.
+ * @returns {Promise<string>} The username of the account the token belongs to.
+ */
+async function fetchUser() {
+  const res = await fetch("/api/getUser");
+  if (!res.ok) {
+    throw new Error(`getUser failed (${res.status})`);
+  }
+  const data = await res.json();
+  return data.username;
+}
 
 /**
  * Fetch the account's current status from the API.
@@ -209,6 +224,28 @@ const RETRY_DELAY_MS = 5000;
 /** Pending retry timer, if the last fetch failed. */
 let retryTimer = null;
 
+/** True once the username has been loaded — it never changes, so fetch once. */
+let nameLoaded = false;
+
+/**
+ * Load the username into the card title, unless it is already there.
+ *
+ * The backend 500s on /api/getUser while the gateway is still connecting,
+ * so the first call after a container start usually fails. In that case the
+ * title reads "unavailable" and the next refresh() re-runs this — the same
+ * retry loop that recovers the status also recovers the name.
+ * @returns {Promise<void>}
+ */
+async function loadName() {
+  if (nameLoaded) return;
+  try {
+    els.user.textContent = await fetchUser();
+    nameLoaded = true;
+  } catch {
+    els.user.textContent = "unavailable";
+  }
+}
+
 /**
  * Load the current status and paint the UI. Called on startup and after
  * every successful change to stay in sync with the server. After a failure
@@ -222,6 +259,9 @@ async function refresh() {
     clearTimeout(retryTimer);
     retryTimer = null;
   }
+  // The username is static, so loadName() stops hitting the API once it
+  // succeeds; failures ride on this same retry timer.
+  await loadName();
   try {
     const status = await fetchStatus();
     showError(null);
@@ -273,6 +313,7 @@ function init() {
   els = {
     grid: document.getElementById("statusGrid"),
     value: document.getElementById("statusValue"),
+    user: document.getElementById("userName"),
     error: document.getElementById("error"),
   };
   renderButtons();
