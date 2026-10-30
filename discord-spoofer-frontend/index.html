@@ -39,6 +39,13 @@
           Note: while an official Discord client (e.g. the desktop app) is
           open, its status takes priority over this one.
         </p>
+        <p class="card__heartbeat" id="heartbeatLine" data-health="unknown">
+          <!-- Liveness line, painted by app.js from GET /api/getHeartbeat:
+               dot colour shows whether the gateway connection is acking
+               heartbeats, text shows how long ago the last ack was. -->
+          <span class="heartbeat-dot" aria-hidden="true"></span>
+          <span id="heartbeatText">checking heartbeat&hellip;</span>
+        </p>
       </div>
     </section>
   </main>

@@ -40,6 +40,29 @@ clients closed.
 `npm test` runs the gateway protocol + API surface tests (no token or network
 needed).
 
+# HTTP API
+The frontend (and anything else on your LAN) talks to Express on `PORT`:
+
+| Route | Response |
+| --- | --- |
+| `GET /api/getStatus` | `{ currentStatus }` |
+| `GET /api/getUser` | `{ username }` |
+| `GET /api/getHeartbeat` | `{ intervalMs, ackAgoMs, serverNowMs }` |
+| `POST /api/updateStatus` | `200`, body `{ newStatus, isAfk }` |
+
+All of them return 500 while the gateway has not reached READY, which is
+normal for a few seconds after a container start. The token never reaches the
+browser.
+
+`getHeartbeat` is the "is it still working" check the UI shows in the card
+footer. Discord sends a `HELLO` with the heartbeat interval (~41s) and the
+gateway acks every heartbeat; `ackAgoMs` is how long it has been since the
+last ack. The UI reads green under `2 * intervalMs` — the same threshold the
+gateway uses to decide a connection is a zombie and force a reconnect — amber
+above it, and red when the server cannot be reached. `serverNowMs` is the
+server's clock at the moment of the response, so the UI can age `ackAgoMs` by
+a second between polls without trusting the browser clock.
+
 
 
 

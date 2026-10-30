@@ -244,6 +244,29 @@ test("sends heartbeats on the hello interval, carrying the last seq", async () =
     gateway.disconnect();
 });
 
+test("heartbeatState() reports interval and ack time for /api/getHeartbeat", async () => {
+    const beforeConnect = Date.now();
+    const gateway = await connectReady(); // mock heartbeat_interval = 50ms
+
+    const first = gateway.heartbeatState();
+    assert.equal(first.intervalMs, 50, "interval comes from HELLO");
+    assert.equal(first.ready, true);
+    assert.ok(first.lastAckMs >= beforeConnect && first.lastAckMs <= Date.now(),
+        "ack time is seeded when the session starts");
+
+    // The mock acks every beat, so the ack time must keep moving forward —
+    // this is the number /api/getHeartbeat ages and the UI colours.
+    await sleep(160);
+    const later = gateway.heartbeatState();
+    assert.ok(later.lastAckMs > first.lastAckMs, "acks advance lastAckMs");
+    assert.ok(Date.now() - later.lastAckMs < 2 * later.intervalMs,
+        "stays inside the gateway's zombie-connection threshold");
+
+    gateway.disconnect();
+    // After disconnect the flag goes false; /api/getHeartbeat 500s on it.
+    assert.equal(gateway.heartbeatState().ready, false);
+});
+
 test("resumes the session after a reconnect (no re-identify)", async () => {
     const gateway = await connectReady();
     await gateway.setPresence("idle", false);

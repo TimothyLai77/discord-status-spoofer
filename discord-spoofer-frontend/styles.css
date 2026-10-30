@@ -275,6 +275,47 @@ body[data-status="invisible"] .status-value {
   color: var(--text-muted);
 }
 
+/* ---------------- Heartbeat liveness line ---------------- */
+
+.card__heartbeat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--bg-tertiary);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.heartbeat-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-invisible); /* data-health="unknown" */
+}
+
+/* Health states are set on .card__heartbeat by paintHeartbeat() in app.js.
+   "ok" uses the gateway's own rule — an ack within 2 heartbeat intervals —
+   so the dot says "alive" for exactly the reason the client reconnects. */
+.card__heartbeat[data-health="ok"] .heartbeat-dot {
+  background: var(--status-online);
+}
+
+.card__heartbeat[data-health="stale"] .heartbeat-dot {
+  background: var(--status-idle);
+}
+
+.card__heartbeat[data-health="dead"] .heartbeat-dot {
+  background: var(--status-dnd);
+}
+
+.card__heartbeat[data-health="dead"] {
+  color: #fa777c; /* same red as .card__error */
+}
+
 /* Small screens: one button per row */
 @media (maxwidth: 380px) {
   .status-grid {
