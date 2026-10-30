@@ -72,6 +72,32 @@ app.get('/api/getUser', async (req, res) => {
 
 });
 
+// GET heartbeat liveness, so the UI can show that the gateway connection is
+// actually alive. Ages are computed here (server clock) and shipped with
+// serverNowMs, so the browser can tick them up between polls without
+// depending on its own clock matching ours.
+app.get('/api/getHeartbeat', async (req, res) => {
+    console.log('GET: /api/getHeartbeat')
+    try {
+        const { intervalMs, lastAckMs, ready } = gateway.heartbeatState();
+        if (!ready) {
+            throw new Error('gateway not ready');
+        }
+        const nowMs = Date.now();
+        res.json({
+            intervalMs,
+            // Never negative: lastAckMs is seeded at session start, so in a
+            // healthy session it is always <= now.
+            ackAgoMs: Math.max(0, nowMs - lastAckMs),
+            serverNowMs: nowMs
+        })
+    } catch {
+        res.status(500);
+        res.send('error getting heartbeat state')
+    }
+
+});
+
 // update the status {newStatus: "status", isAfk: bool}
 // isAfk maps to the afk field of the op 3 presence frame. Discord uses it
 // to decide whether the account is "away": with afk:true the mobile app

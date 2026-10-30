@@ -5,6 +5,7 @@
  * Express API with `fetch`:
  *   - GET  /api/getUser       -> { username }
  *   - GET  /api/getStatus     -> { currentStatus }
+ *   - GET  /api/getHeartbeat  -> { intervalMs, ackAgoMs, serverNowMs }
  *   - POST /api/updateStatus  -> { newStatus, isAfk }
  *
  * The UI mirrors Discord's own status picker: a card headed by the account's
@@ -12,6 +13,11 @@
  * button per status. The active status is highlighted in blurple and its
  * presence color tints the avatar dot and the "Current status" label (see
  * styles.css).
+ *
+ * A footer line reports gateway liveness: how long ago the gateway last
+ * acked a heartbeat, with a dot that goes amber past the 2-interval
+ * threshold the gateway itself uses to detect a dead ("zombie") connection,
+ * and red when the API cannot be reached at all.
  */
 
 "use strict";
@@ -91,7 +97,8 @@ for (const [key, meta] of Object.entries(STATUS_META)) {
 
 /**
  * Cache of the DOM nodes we touch, resolved once on load.
- * @type {{grid: HTMLElement, value: HTMLElement, user: HTMLElement, error: HTMLElement}}
+ * @type {{grid: HTMLElement, value: HTMLElement, user: HTMLElement,
+ *   error: HTMLElement, heartbeatLine: HTMLElement, heartbeatText: HTMLElement}}
  */
 let els = null;
 
@@ -119,6 +126,25 @@ async function fetchStatus() {
   }
   const data = await res.json();
   return data.currentStatus;
+}
+
+/**
+ * Fetch gateway heartbeat liveness from the API.
+ * @returns {Promise<{ intervalMs: number, ackAgoMs: number, serverNowMs: number }>}
+ *   ackAgoMs is computed on the server (its clock), so it is trustworthy
+ *   without the browser clock agreeing with it.
+ */
+async function fetchHeartbeat() {
+  const res = await fetch("/api/getHeartbeat");
+  if (!res.ok) {
+    throw new Error(`getHeartbeat failed (${res.status})`);
+  }
+  const data = await res.json();
+  return {
+    intervalMs: data.intervalMs,
+    ackAgoMs: data.ackAgoMs,
+    serverNowMs: data.serverNowMs,
+  };
 }
 
 /**
@@ -218,11 +244,88 @@ function setButtonsDisabled(disabled) {
   }
 }
 
-/** Milliseconds between automatic status-fetch retries. */
+/** Milliseconds between status/heartbeat polls (first poll, retries, and the
+ *  steady-state re-fetch that keeps the heartbeat age counter fresh). */
 const RETRY_DELAY_MS = 5000;
 
-/** Pending retry timer, if the last fetch failed. */
-let retryTimer = null;
+/**
+ * Milliseconds between ticks of the heartbeat age counter. The data itself
+ * only refreshes every RETRY_DELAY_MS; the ticker just ages the last sample
+ * so the number moves in ones, like a working connection should.
+ */
+const TICK_DELAY_MS = 1000;
+
+/** Pending poll timer: the next refresh() (retry after failure, or the
+ *  steady-state poll). */
+let pollTimer = null;
+
+/** Pending ticker timer for the heartbeat age counter. */
+let tickTimer = null;
+
+/**
+ * Newest heartbeat sample, or null when the last /api/getHeartbeat failed.
+ * @type {{ intervalMs: number, ackAgoMs: number, arrivedAtMs: number }|null}
+ */
+let heartbeatSample = null;
+
+/**
+ * Format an age in milliseconds as short human text ("3s", "1m 12s").
+ * @param {number} ms Age in milliseconds.
+ * @returns {string}
+ */
+function formatAge(ms) {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    const rest = seconds % 60;
+    return rest ? `${minutes}m ${rest}s` : `${minutes}m`;
+  }
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+/**
+ * Age of the newest heartbeat ack, in milliseconds, aged locally.
+ * Uses only browser-clock deltas added to the server-computed age, so a
+ * browser clock that disagrees with the server cannot produce a negative
+ * (or jumpy) counter.
+ * @returns {number|null} Age in ms, or null when there is no sample.
+ */
+function heartbeatAgeMs() {
+  if (!heartbeatSample) {
+    return null;
+  }
+  return heartbeatSample.ackAgoMs + (Date.now() - heartbeatSample.arrivedAtMs);
+}
+
+/**
+ * Paint the heartbeat liveness line from the current sample.
+ * Called on every fetch and on every 1s tick.
+ *
+ * Health thresholds mirror the gateway: it forces a reconnect once
+ * 2 * interval has passed without an ack, so "ok" here means the same thing
+ * the client considers a live connection.
+ * @returns {void}
+ */
+function paintHeartbeat() {
+  const ageMs = heartbeatAgeMs();
+
+  if (ageMs === null) {
+    els.heartbeatLine.dataset.health = "dead";
+    els.heartbeatText.textContent = "heartbeat check failed — can't reach the server";
+    return;
+  }
+
+  const { intervalMs } = heartbeatSample;
+  const healthy = Boolean(intervalMs) && ageMs < 2 * intervalMs;
+
+  els.heartbeatLine.dataset.health = healthy ? "ok" : "stale";
+  els.heartbeatText.textContent = healthy
+    ? `heartbeat acked ${formatAge(ageMs)} ago`
+    : `no heartbeat ack for ${formatAge(ageMs)}`;
+}
 
 /** True once the username has been loaded — it never changes, so fetch once. */
 let nameLoaded = false;
@@ -247,34 +350,61 @@ async function loadName() {
 }
 
 /**
- * Load the current status and paint the UI. Called on startup and after
- * every successful change to stay in sync with the server. After a failure
- * it re-runs itself on a timer: the backend returns 500 while the gateway
- * is still (re)connecting, which is expected right after a container start
- * or a network blip and clears itself.
+ * Load the current status and heartbeat liveness and paint the UI. Runs on
+ * startup, after every status change, and then every RETRY_DELAY_MS in the
+ * steady state (see pollTimer). A failing backend 500s while the gateway is
+ * still (re)connecting, which is expected right after a container start or a
+ * network blip, so the same loop doubles as the retry loop. A heartbeat
+ * failure paints a red line but does not add its own timer — it rides on the
+ * same poll.
  * @returns {Promise<void>}
  */
 async function refresh() {
-  if (retryTimer) {
-    clearTimeout(retryTimer);
-    retryTimer = null;
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
   }
   // The username is static, so loadName() stops hitting the API once it
   // succeeds; failures ride on this same retry timer.
   await loadName();
-  try {
-    const status = await fetchStatus();
+
+  // Status and heartbeat are independent requests, so they go out together:
+  // a slow or failing status fetch must not delay the liveness line.
+  const [statusResult, heartbeatResult] = await Promise.allSettled([
+    fetchStatus(),
+    fetchHeartbeat(),
+  ]);
+
+  if (statusResult.status === "fulfilled") {
     showError(null);
-    applyStatus(status);
-  } catch (err) {
+    applyStatus(statusResult.value);
+    // Poll again on success too. The heartbeat age is measured from a sample,
+    // so without a steady poll the counter would keep aging past the healthy
+    // threshold and read amber on a perfectly live connection. This also
+    // keeps the status honest if the account changes on another device.
+    pollTimer = setTimeout(refresh, RETRY_DELAY_MS);
+  } else {
     applyStatus(null, "unavailable");
+    const err = statusResult.reason;
     showError(
       "Couldn't load your status. " +
         (err && err.message ? err.message : "Try again.") +
         " Retrying…"
     );
-    retryTimer = setTimeout(refresh, RETRY_DELAY_MS);
+    pollTimer = setTimeout(refresh, RETRY_DELAY_MS);
   }
+
+  if (heartbeatResult.status === "fulfilled") {
+    const data = heartbeatResult.value;
+    heartbeatSample = {
+      intervalMs: data.intervalMs,
+      ackAgoMs: data.ackAgoMs,
+      arrivedAtMs: Date.now(),
+    };
+  } else {
+    heartbeatSample = null;
+  }
+  paintHeartbeat();
 }
 
 /**
@@ -315,10 +445,15 @@ function init() {
     value: document.getElementById("statusValue"),
     user: document.getElementById("userName"),
     error: document.getElementById("error"),
+    heartbeatLine: document.getElementById("heartbeatLine"),
+    heartbeatText: document.getElementById("heartbeatText"),
   };
   renderButtons();
   applyStatus(null, "loading…");
   setButtonsDisabled(true);
+  // Age the heartbeat counter every second between fetches; paintHeartbeat()
+  // is a no-op on data, so this is the only place the ticker touches.
+  tickTimer = setInterval(paintHeartbeat, TICK_DELAY_MS);
   refresh().finally(() => setButtonsDisabled(false));
 }
 

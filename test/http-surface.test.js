@@ -30,6 +30,9 @@ class StubGateway extends EventEmitter {
         this.status = null;
         /** @type {Object|null} READY user object, like the real gateway stores. */
         this.user = null;
+        /** Heartbeat state the real gateway keeps from HELLO / ACK frames. */
+        this.intervalMs = 41250;
+        this.lastAckMs = 0;
         /** @type {Array<[string, boolean]>} setPresence calls in order. */
         this.presenceCalls = [];
         /** When true, setPresence rejects like the real gateway does when
@@ -56,9 +59,16 @@ class StubGateway extends EventEmitter {
         this.status = status;
     }
 
+    /** Mirror of DiscordGateway#heartbeatState (used by /api/getHeartbeat). */
+    heartbeatState() {
+        return { intervalMs: this.intervalMs, lastAckMs: this.lastAckMs, ready: this.ready };
+    }
+
     /** Test helper: pretend the gateway became ready. */
     becomeReady() {
         this.ready = true;
+        // Real gateway seeds lastAckMs when IDENTIFY goes out (see #onHello).
+        this.lastAckMs = Date.now();
         this.user = { id: "123456789012345678", username: "stubuser", global_name: "Stub User" };
         this.emit("ready", this.user);
     }
@@ -108,6 +118,11 @@ test("getUser returns 500 before the gateway is ready", async () => {
     assert.equal(res.status, 500);
 });
 
+test("getHeartbeat returns 500 before the gateway is ready", async () => {
+    const res = await fetch(`${base}/api/getHeartbeat`);
+    assert.equal(res.status, 500);
+});
+
 test("updateStatus returns 500 before the gateway is ready", async () => {
     const res = await fetch(`${base}/api/updateStatus`, {
         method: "POST",
@@ -149,6 +164,30 @@ test("getUser returns the READY username after ready", async () => {
     const res = await fetch(`${base}/api/getUser`);
     assert.equal(res.status, 200);
     assert.deepEqual(await res.json(), { username: "stubuser" });
+});
+
+test("getHeartbeat reports the heartbeat interval and ack age", async () => {
+    const res = await fetch(`${base}/api/getHeartbeat`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.deepEqual(Object.keys(body).sort(), ["ackAgoMs", "intervalMs", "serverNowMs"]);
+    assert.equal(body.intervalMs, 41250);
+    assert.ok(Number.isFinite(body.ackAgoMs) && body.ackAgoMs >= 0, `ackAgoMs: ${body.ackAgoMs}`);
+    assert.ok(Number.isFinite(body.serverNowMs) && body.serverNowMs > 0);
+    // Just acked at becomeReady, so the age must be tiny — a UI comparing
+    // this against 2 * intervalMs reads "healthy" immediately.
+    assert.ok(body.ackAgoMs < 5_000, `ackAgoMs: ${body.ackAgoMs}`);
+});
+
+test("getHeartbeat age keeps growing while no ack arrives", async () => {
+    // The reconnect-gap case the UI shows as unhealthy: lastAckMs goes stale
+    // and nothing resets it until the next session seeds it.
+    StubGateway.instance.lastAckMs = Date.now() - 90_000;
+    const res = await fetch(`${base}/api/getHeartbeat`);
+    const body = await res.json();
+    assert.ok(body.ackAgoMs >= 90_000, `ackAgoMs: ${body.ackAgoMs}`);
+    assert.ok(body.ackAgoMs > 2 * body.intervalMs, "past the zombie-connection threshold");
+    StubGateway.instance.lastAckMs = Date.now();
 });
 
 test("updateStatus passes isAfk through to setPresence", async () => {
