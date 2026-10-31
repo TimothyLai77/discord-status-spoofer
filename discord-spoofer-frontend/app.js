@@ -7,6 +7,9 @@
  *   - GET  /api/getStatus     -> { currentStatus }
  *   - GET  /api/getHeartbeat  -> { intervalMs, ackAgoMs, serverNowMs }
  *   - POST /api/updateStatus  -> { newStatus, isAfk }
+ *   - GET  /api/gateway/connection   -> { state, ready }
+ *   - POST /api/gateway/disconnect   -> { state, ready }
+ *   - POST /api/gateway/reconnect    -> { state, ready }
  *
  * The UI mirrors Discord's own status picker: a card headed by the account's
  * Discord username and avatar (showing a live presence dot), with one pill
@@ -17,7 +20,15 @@
  * A footer line reports gateway liveness: how long ago the gateway last
  * acked a heartbeat, with a dot that goes amber past the 2-interval
  * threshold the gateway itself uses to detect a dead ("zombie") connection,
- * and red when the API cannot be reached at all.
+ * red when the API cannot be reached at all, and neutral grey while the
+ * gateway is disconnected on purpose (no fault to look for).
+ *
+ * Above it, a Gateway row reports the connection state and holds the
+ * Disconnect/Reconnect toggle: POST /api/gateway/disconnect drops the gateway
+ * session and keeps it down, POST /api/gateway/reconnect starts a fresh one.
+ * While the session is deliberately down the status buttons are greyed out
+ * (there is no socket to send a presence on) and the status label reads
+ * "disconnected".
  */
 
 "use strict";
@@ -96,9 +107,28 @@ for (const [key, meta] of Object.entries(STATUS_META)) {
 }
 
 /**
+ * What each gateway connection state means for the UI.
+ *
+ * `state` is one of the four values GET /api/gateway/connection reports;
+ * `label` is the state word in the Gateway row and `action` is the verb the
+ * toggle button offers in that state. Anything outside these four (an
+ * unexpected value, a failed call) renders as "unknown".
+ *
+ * @type {Record<string, { label: string, action: string }>}
+ */
+const CONNECTION_META = {
+  connected: { label: "Connected", action: "Disconnect" },
+  connecting: { label: "Connecting…", action: "Disconnect" },
+  reconnecting: { label: "Reconnecting…", action: "Disconnect" },
+  disconnected: { label: "Disconnected", action: "Reconnect" },
+};
+
+/**
  * Cache of the DOM nodes we touch, resolved once on load.
  * @type {{grid: HTMLElement, value: HTMLElement, user: HTMLElement,
- *   error: HTMLElement, heartbeatLine: HTMLElement, heartbeatText: HTMLElement}}
+ *   error: HTMLElement, heartbeatLine: HTMLElement, heartbeatText: HTMLElement,
+ *   connectionRow: HTMLElement, connectionState: HTMLElement,
+ *   connectionBtn: HTMLButtonElement, connectionBtnLabel: HTMLElement}}
  */
 let els = null;
 
@@ -160,6 +190,38 @@ async function sendStatus(status) {
   });
   if (!res.ok) {
     throw new Error(`updateStatus failed (${res.status})`);
+  }
+}
+
+/**
+ * Fetch the gateway connection state.
+ *
+ * This route answers in every state, disconnected included — that is exactly
+ * the state the toggle button has to be rendered in, so it must not 500 the
+ * way the session-data routes do.
+ * @returns {Promise<{ state: string, ready: boolean }>}
+ */
+async function fetchConnection() {
+  const res = await fetch("/api/gateway/connection");
+  if (!res.ok) {
+    throw new Error(`gateway connection check failed (${res.status})`);
+  }
+  const data = await res.json();
+  return { state: data.state, ready: data.ready };
+}
+
+/**
+ * Ask the backend to drop or re-open the gateway connection.
+ * @param {"disconnect"|"reconnect"} action Which way to toggle.
+ * @returns {Promise<void>}
+ */
+async function sendGatewayAction(action) {
+  const res = await fetch(`/api/gateway/${action}`, { method: "POST" });
+  if (!res.ok) {
+    // The 500 body carries the reason (e.g. the socket died before the
+    // session started), which says more than the bare status code.
+    const reason = await res.text().catch(() => "");
+    throw new Error(reason || `${action} failed (${res.status})`);
   }
 }
 
@@ -234,14 +296,37 @@ function showError(message) {
 }
 
 /**
- * Enable or disable every status button (used while a request is in flight).
+ * Enable or disable every status button (used while a request is in flight,
+ * and while the gateway is deliberately disconnected — with no socket, a
+ * presence update can only fail).
  * @param {boolean} disabled
  * @returns {void}
  */
 function setButtonsDisabled(disabled) {
+  const off = Boolean(disabled) || isGatewayDown();
   for (const btn of els.grid.querySelectorAll(".status-btn")) {
-    btn.disabled = disabled;
+    btn.disabled = off;
   }
+}
+
+/**
+ * Paint the Gateway row: state word, dot colour (through data-state, see
+ * styles.css) and the verb the toggle button offers.
+ *
+ * Also records the state in `gatewayState`, which is what the status buttons
+ * and the status label read from ("disconnected" + greyed out, "Reconnect").
+ * @param {string|null} state State from GET /api/gateway/connection, or null
+ *   when that call failed.
+ * @returns {void}
+ */
+function paintConnection(state) {
+  gatewayState = CONNECTION_META[state] ? state : null;
+  const meta = gatewayState ? CONNECTION_META[gatewayState] : null;
+
+  els.connectionRow.dataset.state = gatewayState ?? "unknown";
+  els.connectionState.textContent = meta ? meta.label : "unknown";
+  els.connectionBtnLabel.textContent = meta ? meta.action : "unavailable";
+  els.connectionBtn.disabled = !meta;
 }
 
 /** Milliseconds between status/heartbeat polls (first poll, retries, and the
@@ -261,6 +346,23 @@ let pollTimer = null;
 
 /** Pending ticker timer for the heartbeat age counter. */
 let tickTimer = null;
+
+/**
+ * Newest gateway connection state from GET /api/gateway/connection, or null
+ * when that call failed. Written by paintConnection(), read by isGatewayDown().
+ * @type {string|null}
+ */
+let gatewayState = null;
+
+/**
+ * True when the gateway is deliberately disconnected (the user pressed the
+ * toggle): nothing will reconnect on its own, and a presence update would
+ * fail for lack of a socket.
+ * @returns {boolean}
+ */
+function isGatewayDown() {
+  return gatewayState === "disconnected";
+}
 
 /**
  * Newest heartbeat sample, or null when the last /api/getHeartbeat failed.
@@ -313,6 +415,14 @@ function paintHeartbeat() {
   const ageMs = heartbeatAgeMs();
 
   if (ageMs === null) {
+    if (isGatewayDown()) {
+      // Not a dead server: the API answered fine, there is simply no session
+      // to ack heartbeats because the user closed it. Saying "can't reach the
+      // server" here would send them looking in the wrong place.
+      els.heartbeatLine.dataset.health = "off";
+      els.heartbeatText.textContent = "gateway disconnected — heartbeats stopped";
+      return;
+    }
     els.heartbeatLine.dataset.health = "dead";
     els.heartbeatText.textContent = "heartbeat check failed — can't reach the server";
     return;
@@ -368,21 +478,29 @@ async function refresh() {
   // succeeds; failures ride on this same retry timer.
   await loadName();
 
-  // Status and heartbeat are independent requests, so they go out together:
-  // a slow or failing status fetch must not delay the liveness line.
-  const [statusResult, heartbeatResult] = await Promise.allSettled([
+  // Status, heartbeat and connection state are independent requests, so they
+  // all go out together: a slow or failing route must not delay the others.
+  const [statusResult, heartbeatResult, connectionResult] = await Promise.allSettled([
     fetchStatus(),
     fetchHeartbeat(),
+    fetchConnection(),
   ]);
 
-  if (statusResult.status === "fulfilled") {
+  // Connection state is applied first: it decides how the status is labelled
+  // (a deliberate disconnect reads "disconnected", not a scary "couldn't load
+  // your status") and whether the status buttons are usable at all.
+  paintConnection(
+    connectionResult.status === "fulfilled" ? connectionResult.value.state : null
+  );
+
+  if (isGatewayDown()) {
+    // Nothing to load and nothing to retry — the socket is down because the
+    // user asked for it. Say so plainly, with no error banner.
+    applyStatus(null, "disconnected");
+    showError(null);
+  } else if (statusResult.status === "fulfilled") {
     showError(null);
     applyStatus(statusResult.value);
-    // Poll again on success too. The heartbeat age is measured from a sample,
-    // so without a steady poll the counter would keep aging past the healthy
-    // threshold and read amber on a perfectly live connection. This also
-    // keeps the status honest if the account changes on another device.
-    pollTimer = setTimeout(refresh, RETRY_DELAY_MS);
   } else {
     applyStatus(null, "unavailable");
     const err = statusResult.reason;
@@ -391,7 +509,6 @@ async function refresh() {
         (err && err.message ? err.message : "Try again.") +
         " Retrying…"
     );
-    pollTimer = setTimeout(refresh, RETRY_DELAY_MS);
   }
 
   if (heartbeatResult.status === "fulfilled") {
@@ -405,6 +522,16 @@ async function refresh() {
     heartbeatSample = null;
   }
   paintHeartbeat();
+
+  // Poll again in every case, the disconnected one included. The heartbeat
+  // counter needs its steady sample, and a gateway that comes back — a
+  // Reconnect press in another tab, a container restart — has to be picked up
+  // without a page reload.
+  pollTimer = setTimeout(refresh, RETRY_DELAY_MS);
+
+  // This is the end of any in-flight request: hand the buttons back. The
+  // gateway-down case stays greyed out inside setButtonsDisabled().
+  setButtonsDisabled(false);
 }
 
 /**
@@ -436,6 +563,32 @@ async function onStatusClick(status, btn) {
 }
 
 /**
+ * Handle a click on the gateway toggle: drop the session when one is up, and
+ * start a fresh one when the user took it down. Then re-sync, which repaints
+ * the row (and re-enables the button) from the server's answer.
+ * @returns {Promise<void>}
+ */
+async function onConnectionClick() {
+  const action = isGatewayDown() ? "reconnect" : "disconnect";
+  els.connectionBtn.disabled = true;
+  els.connectionBtnLabel.textContent =
+    action === "reconnect" ? "connecting…" : "disconnecting…";
+  setButtonsDisabled(true);
+  try {
+    await sendGatewayAction(action);
+    showError(null);
+  } catch (err) {
+    showError(
+      `Couldn't ${action} the gateway. ` +
+        (err && err.message ? err.message : "Try again.")
+    );
+  }
+  // A disconnect answer is final; a reconnect answer is "connecting". The
+  // 5s poll carries that on to "connected".
+  await refresh();
+}
+
+/**
  * Entry point: cache DOM nodes, render buttons, do the initial fetch.
  * @returns {void}
  */
@@ -447,8 +600,13 @@ function init() {
     error: document.getElementById("error"),
     heartbeatLine: document.getElementById("heartbeatLine"),
     heartbeatText: document.getElementById("heartbeatText"),
+    connectionRow: document.getElementById("connectionRow"),
+    connectionState: document.getElementById("connectionState"),
+    connectionBtn: document.getElementById("connectionBtn"),
+    connectionBtnLabel: document.getElementById("connectionBtnLabel"),
   };
   renderButtons();
+  els.connectionBtn.addEventListener("click", onConnectionClick);
   applyStatus(null, "loading…");
   setButtonsDisabled(true);
   // Age the heartbeat counter every second between fetches; paintHeartbeat()

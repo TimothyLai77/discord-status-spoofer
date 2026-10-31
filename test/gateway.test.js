@@ -348,3 +348,137 @@ test("disconnect() prevents reconnection", async () => {
     assert.equal(gateway.ready, false);
     assert.equal(MockWebSocket.instances.length, instanceCount, "no new socket after disconnect");
 });
+
+test("connectionState() reports the session lifecycle", async () => {
+    const gateway = await connectReady();
+
+    assert.deepEqual(gateway.connectionState(), { state: "connected", ready: true });
+
+    // A gateway-side drop starts an automatic retry: the state is the backoff
+    // gap, not "disconnected" (nothing about it needs the user's help).
+    MockWebSocket.instances.at(-1).close(4009);
+    await sleep(10); // let the close handler run and arm the backoff timer
+    assert.deepEqual(gateway.connectionState(), { state: "reconnecting", ready: false });
+
+    gateway.disconnect();
+    assert.deepEqual(gateway.connectionState(), { state: "disconnected", ready: false },
+        "a manual disconnect is its own state: nothing will reconnect");
+});
+
+test("disconnect() drops the resumable session state", async () => {
+    const gateway = await connectReady();
+    assert.equal(gateway.sessionId, "session-1");
+
+    gateway.disconnect();
+
+    // A session closed on purpose is not resumable, so the state a RESUME
+    // would need is gone: the next connect has to identify fresh.
+    assert.equal(gateway.sessionId, null);
+    assert.equal(gateway.seq, null);
+});
+
+test("reconnect() after a manual disconnect identifies a fresh session", async () => {
+    const gateway = await connectReady();
+    const firstSocket = MockWebSocket.instances.at(-1);
+    const instanceCount = MockWebSocket.instances.length;
+
+    gateway.disconnect();
+    const readyPromise = waitFor(gateway, "ready");
+    await gateway.reconnect();
+    await readyPromise;
+
+    const socket = MockWebSocket.instances.at(-1);
+    assert.equal(MockWebSocket.instances.length, instanceCount + 1, "exactly one new socket");
+    assert.notEqual(socket, firstSocket);
+    assert.ok(socket.sent.some((f) => f.op === 2), "IDENTIFY went out");
+    assert.ok(!socket.sent.some((f) => f.op === 6), "no RESUME with a dead session id");
+    assert.equal(gateway.ready, true);
+    assert.equal(gateway.sessionId, "session-1", "the new session id is stored");
+    assert.deepEqual(gateway.connectionState(), { state: "connected", ready: true });
+
+    gateway.disconnect();
+});
+
+test("reconnect() while a backoff is pending keeps one socket in flight", async () => {
+    // Long backoff so the scheduled retry is still pending when the user hits
+    // Reconnect. Without the timer being cleared, that retry would fire later
+    // and open a second socket for the same account.
+    const gateway = await connectReady({ reconnectBaseDelayMs: 4000 });
+    const instanceCount = MockWebSocket.instances.length;
+
+    MockWebSocket.instances.at(-1).close(4009); // arms the 4000ms retry
+    await sleep(10);
+    assert.deepEqual(gateway.connectionState(), { state: "reconnecting", ready: false });
+
+    const readyPromise = waitFor(gateway, "ready");
+    await gateway.reconnect();
+    await readyPromise;
+
+    assert.equal(gateway._reconnectTimer, null, "pending backoff timer was cleared");
+    assert.equal(MockWebSocket.instances.length, instanceCount + 1, "one socket, not two");
+    assert.deepEqual(gateway.connectionState(), { state: "connected", ready: true });
+
+    gateway.disconnect();
+});
+
+test("reconnect() restores backoff after a manual disconnect", async () => {
+    // The deliberate disconnect must not leave the backoff state poisoned: a
+    // socket drop right after reconnecting gets the base delay, not the
+    // doubled one from before it went down.
+    const gateway = await connectReady({ reconnectBaseDelayMs: 20 });
+    MockWebSocket.instances.at(-1).close(4009);
+    await sleep(30); // one automatic retry ran, doubling the delay to 40ms
+
+    await gateway.reconnect();
+    assert.equal(gateway._reconnectDelayMs, 20, "backoff reset to base");
+
+    gateway.disconnect();
+});
+
+test("connect() refuses to open a second socket while one is live", async () => {
+    const gateway = await connectReady();
+    const instanceCount = MockWebSocket.instances.length;
+
+    await assert.rejects(gateway.connect(), /already connected/);
+    assert.equal(MockWebSocket.instances.length, instanceCount, "no extra socket");
+
+    gateway.disconnect();
+});
+
+test("reconnect() while a session is live is a no-op", async () => {
+    // Two tabs, a double press, a scripted call: opening a second session on
+    // top of a live one would fight it for the presence, so it must not happen.
+    const gateway = await connectReady();
+    const instanceCount = MockWebSocket.instances.length;
+
+    await gateway.reconnect();
+    await sleep(50);
+
+    assert.equal(MockWebSocket.instances.length, instanceCount, "no second socket");
+    assert.deepEqual(gateway.connectionState(), { state: "connected", ready: true });
+    assert.equal(gateway.sessionId, "session-1", "the live session is untouched");
+
+    gateway.disconnect();
+});
+
+test("an auto-reconnect after a reconnect() reconnect on its own", async () => {
+    // The UI's Reconnect must not take the class out of its auto-reconnect
+    // role: the session it opens has to be guarded like any other.
+    const gateway = await connectReady();
+    gateway.disconnect();
+
+    const readyPromise = waitFor(gateway, "ready");
+    await gateway.reconnect();
+    await readyPromise; // the new session must be live before it drops
+    const firstSocket = MockWebSocket.instances.at(-1);
+
+    const resumed = waitFor(gateway, "resumed");
+    firstSocket.close(4009);
+    await resumed;
+
+    assert.deepEqual(gateway.connectionState(), { state: "connected", ready: true });
+    assert.ok(MockWebSocket.instances.at(-1).sent.some((f) => f.op === 6),
+        "the automatic path resumes as usual");
+
+    gateway.disconnect();
+});

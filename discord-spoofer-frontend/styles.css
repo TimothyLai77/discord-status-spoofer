@@ -194,7 +194,10 @@ body[data-status="invisible"] .status-value {
   gap: 10px;
 }
 
-.status-btn {
+/* The gateway toggle reuses the status-button pill styling (below) and only
+   overrides its size, so the two controls stay visually identical. */
+.status-btn,
+.connection-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -212,15 +215,18 @@ body[data-status="invisible"] .status-value {
     transform 60ms ease;
 }
 
-.status-btn:hover:not(:disabled) {
+.status-btn:hover:not(:disabled),
+.connection-btn:hover:not(:disabled) {
   background: var(--bg-tertiary);
 }
 
-.status-btn:active:not(:disabled) {
+.status-btn:active:not(:disabled),
+.connection-btn:active:not(:disabled) {
   transform: scale(0.98);
 }
 
-.status-btn:focus-visible {
+.status-btn:focus-visible,
+.connection-btn:focus-visible {
   outline: 2px solid var(--blurple);
   outline-offset: 2px;
 }
@@ -235,7 +241,8 @@ body[data-status="invisible"] .status-value {
   background: var(--blurple-hover);
 }
 
-.status-btn:disabled {
+.status-btn:disabled,
+.connection-btn:disabled {
   cursor: default;
   opacity: 0.6;
 }
@@ -275,6 +282,86 @@ body[data-status="invisible"] .status-value {
   color: var(--text-muted);
 }
 
+/* ---------------- Gateway connection control ---------------- */
+
+/* State word on the left, the Disconnect/Reconnect toggle on the right.
+   The row wraps to two lines on narrow screens. */
+.connection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--bg-tertiary);
+}
+
+.connection__info {
+  min-width: 0;
+}
+
+.connection__heading {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.connection__state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 5px 0 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.connection-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-invisible); /* data-state="unknown" */
+}
+
+/* Dot colour follows the state app.js writes to data-state: a live session
+   is green, a handshake or backoff gap is amber (work in progress, not
+   dead), and a deliberate disconnect is the neutral grey. */
+.connection[data-state="connected"] .connection-dot {
+  background: var(--status-online);
+}
+
+.connection[data-state="connecting"] .connection-dot,
+.connection[data-state="reconnecting"] .connection-dot {
+  background: var(--status-idle);
+}
+
+.connection[data-state="disconnected"] .connection-dot {
+  background: var(--status-invisible);
+}
+
+/* Slightly smaller than the status pills; it sits in a row, not the grid. */
+.connection-btn {
+  flex: none;
+  padding: 9px 16px;
+  font-size: 13px;
+}
+
+/* When the gateway is down, "Reconnect" is the action the user needs to
+   see, so the button takes the active-status blurple. */
+.connection[data-state="disconnected"] .connection-btn {
+  background: var(--blurple);
+  border-color: var(--blurple);
+  color: #fff;
+}
+
+.connection[data-state="disconnected"] .connection-btn:hover:not(:disabled) {
+  background: var(--blurple-hover);
+}
+
 /* ---------------- Heartbeat liveness line ---------------- */
 
 .card__heartbeat {
@@ -299,9 +386,15 @@ body[data-status="invisible"] .status-value {
 
 /* Health states are set on .card__heartbeat by paintHeartbeat() in app.js.
    "ok" uses the gateway's own rule — an ack within 2 heartbeat intervals —
-   so the dot says "alive" for exactly the reason the client reconnects. */
+   so the dot says "alive" for exactly the reason the client reconnects.
+   "off" is the user-asked-for gap (see the Gateway row above), which is not
+   a fault, so it stays neutral grey instead of the alarm colours. */
 .card__heartbeat[data-health="ok"] .heartbeat-dot {
   background: var(--status-online);
+}
+
+.card__heartbeat[data-health="off"] .heartbeat-dot {
+  background: var(--status-invisible);
 }
 
 .card__heartbeat[data-health="stale"] .heartbeat-dot {
