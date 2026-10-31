@@ -409,8 +409,10 @@ body[data-status="invisible"] .status-value {
   color: #fa777c; /* same red as .card__error */
 }
 
-/* Small screens: one button per row */
-@media (maxwidth: 380px) {
+/* Small screens: one button per row. max-width (not "maxwidth") — an
+   unknown media feature makes the browser drop the whole block, which is
+   why this rule silently never applied. */
+@media (max-width: 380px) {
   .status-grid {
     grid-template-columns: 1fr;
   }
