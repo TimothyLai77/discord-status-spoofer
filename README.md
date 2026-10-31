@@ -49,10 +49,14 @@ The frontend (and anything else on your LAN) talks to Express on `PORT`:
 | `GET /api/getUser` | `{ username }` |
 | `GET /api/getHeartbeat` | `{ intervalMs, ackAgoMs, serverNowMs }` |
 | `POST /api/updateStatus` | `200`, body `{ newStatus, isAfk }` |
+| `GET /api/gateway/connection` | `{ state, ready }` |
+| `POST /api/gateway/disconnect` | `{ state, ready }` |
+| `POST /api/gateway/reconnect` | `{ state, ready }` |
 
-All of them return 500 while the gateway has not reached READY, which is
-normal for a few seconds after a container start. The token never reaches the
-browser.
+The first four return 500 while the gateway has not reached READY, which is
+normal for a few seconds after a container start. The three gateway-control
+routes answer in every state (a 500 there would make a deliberate
+disconnect look like a dead server). The token never reaches the browser.
 
 `getHeartbeat` is the "is it still working" check the UI shows in the card
 footer. Discord sends a `HELLO` with the heartbeat interval (~41s) and the
@@ -64,6 +68,34 @@ server's clock at the moment of the response, so the UI can age `ackAgoMs` by
 a second between polls without trusting the browser clock.
 
 
+
+
+# Connecting the gateway down and back up
+
+The card has a **Gateway** row with a state word (Connected / Connecting… /
+Reconnecting… / Disconnected) and one toggle button: **Disconnect** while a
+session is up, **Reconnect** once you have taken it down.
+
+- **Disconnect** closes the websocket and stops the reconnect machinery. The
+  app stays down until you press Reconnect — this is the only state where it
+  refuses to reconnect, network drops included. While you are down the status
+  buttons are greyed out and the status label reads `disconnected` (there is
+  no socket to send a presence on), and the heartbeat line reads
+  `heartbeats stopped` in neutral grey.
+- **Reconnect** opens a **fresh session** (a new IDENTIFY, not a RESUME — a
+  session Discord saw you close on purpose is not resumable). The button
+  returns as soon as the identify is out, the row reads `Connecting…`, and the
+  UI's 5s poll flips it to `Connected` when READY lands. Your **last status is
+  restored**, not reset to the online+away startup default: pressing Reconnect
+  asks for the connection back, not for your status to be re-picked. A forced
+  re-identify (op 9, close 4007/4008) restores it the same way.
+- A failed Reconnect (no network, socket dies before the session starts)
+  answers 500 with the reason and leaves the state at `Disconnected` with the
+  button ready to try again, rather than sitting on a `Connecting…` that never
+  resolves.
+
+Nothing here changes the automatic path: a socket that dies on its own keeps
+resuming and reconnecting with backoff exactly as before.
 
 
 # Getting your Discord token ()

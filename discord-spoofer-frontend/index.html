@@ -35,6 +35,24 @@
                status list has a single source of truth. -->
         </div>
         <p class="card__error" id="error" role="alert" hidden></p>
+
+        <!-- Gateway connection control, driven by app.js from
+             GET /api/gateway/connection: a state word (Connected /
+             Connecting… / Reconnecting… / Disconnected) plus one toggle
+             button that reads "Disconnect" while a session is up and
+             "Reconnect" once the user has taken it down. -->
+        <section class="connection" id="connectionRow" data-state="unknown" aria-label="Gateway connection">
+          <div class="connection__info">
+            <h2 class="connection__heading">Gateway</h2>
+            <p class="connection__state">
+              <span class="connection-dot" aria-hidden="true"></span>
+              <span id="connectionState">checking&hellip;</span>
+            </p>
+          </div>
+          <button type="button" class="connection-btn" id="connectionBtn" disabled>
+            <span id="connectionBtnLabel">checking&hellip;</span>
+          </button>
+        </section>
         <p class="card__hint">
           Note: while an official Discord client (e.g. the desktop app) is
           open, its status takes priority over this one.

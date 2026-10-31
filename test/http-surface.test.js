@@ -33,18 +33,59 @@ class StubGateway extends EventEmitter {
         /** Heartbeat state the real gateway keeps from HELLO / ACK frames. */
         this.intervalMs = 41250;
         this.lastAckMs = 0;
+        /** Connection state the real gateway reports to /api/gateway/connection. */
+        this.state = "connecting";
         /** @type {Array<[string, boolean]>} setPresence calls in order. */
         this.presenceCalls = [];
         /** When true, setPresence rejects like the real gateway does when
          *  the socket is not open. */
         this.rejectPresence = false;
+        /** When true, reconnect() rejects like a failed socket handshake. */
+        this.rejectReconnect = false;
+        /** Number of disconnect()/reconnect() calls, for the routes to assert. */
+        this.disconnectCalls = 0;
+        this.reconnectCalls = 0;
     }
 
     /** @returns {Promise<void>} */
     connect() { return Promise.resolve(); }
 
-    /** @returns {void} */
-    disconnect() { /* no-op */ }
+    /**
+     * Mirror of DiscordGateway#disconnect: drop the session, do not reconnect.
+     * @returns {void}
+     */
+    disconnect() {
+        this.disconnectCalls++;
+        this.ready = false;
+        this.state = "disconnected";
+    }
+
+    /**
+     * Mirror of DiscordGateway#reconnect: a fresh identify. Resolves at
+     * identify time (READY has not arrived yet), like the real one.
+     * @returns {Promise<void>}
+     */
+    async reconnect() {
+        if (this.state === "connected") {
+            return; // the real reconnect() is a no-op while a session is live
+        }
+        if (this.rejectReconnect) {
+            throw new Error("connect failed: network down");
+        }
+        this.reconnectCalls++;
+        this.state = "connecting";
+    }
+
+    /** Mirror of DiscordGateway#connectionState (used by /api/gateway/connection). */
+    connectionState() {
+        if (this.state === "disconnected") {
+            return { state: "disconnected", ready: false };
+        }
+        if (this.ready) {
+            return { state: "connected", ready: true };
+        }
+        return { state: this.state, ready: false };
+    }
 
     /**
      * @param {string} status
@@ -67,6 +108,7 @@ class StubGateway extends EventEmitter {
     /** Test helper: pretend the gateway became ready. */
     becomeReady() {
         this.ready = true;
+        this.state = "connected";
         // Real gateway seeds lastAckMs when IDENTIFY goes out (see #onHello).
         this.lastAckMs = Date.now();
         this.user = { id: "123456789012345678", username: "stubuser", global_name: "Stub User" };
@@ -227,6 +269,121 @@ test("ready handler tolerates a rejected setPresence", async () => {
     await new Promise((r) => setTimeout(r, 50));
     const res = await fetch(`${base}/api/getStatus`);
     assert.equal(res.status, 200);
+});
+
+test("gateway/connection reports the state while the session is starting", async () => {
+    // Put the stub back into the state the app is in right after a process
+    // start, before READY.
+    const stub = StubGateway.instance;
+    stub.ready = false;
+    stub.state = "connecting";
+
+    const res = await fetch(`${base}/api/gateway/connection`);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { state: "connecting", ready: false });
+
+    // The session-data routes 500 in that state. The connection route must
+    // not: it is what renders the Disconnect/Reconnect toggle, including in
+    // the states where there is no session at all.
+    assert.equal((await fetch(`${base}/api/getStatus`)).status, 500);
+});
+
+test("disconnect drops the session so status updates stop working", async () => {
+    const stub = StubGateway.instance;
+    stub.becomeReady();
+    await new Promise((r) => setTimeout(r, 50));
+    // Give the account a known status to lose.
+    await fetch(`${base}/api/updateStatus`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newStatus: "dnd", isAfk: false }),
+    });
+    assert.equal((await fetch(`${base}/api/getStatus`)).status, 200);
+    const disconnectsBefore = stub.disconnectCalls;
+
+    const res = await fetch(`${base}/api/gateway/disconnect`, { method: "POST" });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { state: "disconnected", ready: false });
+    assert.equal(stub.disconnectCalls, disconnectsBefore + 1);
+
+    // No session: nothing to set, and nothing to report.
+    const update = await fetch(`${base}/api/updateStatus`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newStatus: "idle" }),
+    });
+    assert.equal(update.status, 500);
+    assert.equal((await fetch(`${base}/api/getStatus`)).status, 500);
+});
+
+test("connection stays disconnected after a manual disconnect", async () => {
+    // The state the UI needs: "Disconnected" + a Reconnect button, read off
+    // a 200 (a 500 here would paint "can't reach the server").
+    const res = await fetch(`${base}/api/gateway/connection`);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { state: "disconnected", ready: false });
+});
+
+test("reconnect re-opens the session and restores the last status", async () => {
+    const stub = StubGateway.instance;
+
+    const res = await fetch(`${base}/api/gateway/reconnect`, { method: "POST" });
+    assert.equal(res.status, 200);
+    // The route resolves at identify time; READY has not landed yet, so the
+    // UI shows "Connecting…" and polls from here.
+    assert.deepEqual(await res.json(), { state: "connecting", ready: false });
+    assert.equal(stub.reconnectCalls, 1);
+
+    // READY lands a moment later. Regression: a fresh identify must restore
+    // the status the user had (dnd above), not reset it to the startup
+    // default online+away.
+    stub.becomeReady();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(stub.presenceCalls.at(-1), ["dnd", false]);
+
+    const status = await fetch(`${base}/api/getStatus`);
+    assert.equal(status.status, 200);
+    assert.deepEqual(await status.json(), { currentStatus: "dnd" });
+
+    const state = await (await fetch(`${base}/api/gateway/connection`)).json();
+    assert.deepEqual(state, { state: "connected", ready: true });
+});
+
+test("a failed reconnect 500s and leaves the gateway disconnected", async () => {
+    const stub = StubGateway.instance;
+    stub.disconnect();
+    stub.rejectReconnect = true;
+    try {
+        const res = await fetch(`${base}/api/gateway/reconnect`, { method: "POST" });
+        assert.equal(res.status, 500);
+        assert.match(await res.text(), /reconnecting the gateway: connect failed/);
+    } finally {
+        stub.rejectReconnect = false;
+    }
+
+    // The route must not leave a "connecting" label that never resolves: a
+    // failed handshake has no socket and nobody owns a retry, so the honest
+    // state is "disconnected" with the Reconnect button back.
+    const state = await (await fetch(`${base}/api/gateway/connection`)).json();
+    assert.deepEqual(state, { state: "disconnected", ready: false });
+});
+
+test("reconnect while connected is a no-op and never drops the session", async () => {
+    // Regression for the route's failure path: an "already connected" error
+    // used to fall into the catch, which marked the gateway down — so two
+    // tabs pressing Reconnect could disconnect a live session.
+    const stub = StubGateway.instance;
+    stub.becomeReady();
+    await new Promise((r) => setTimeout(r, 50));
+    const callsBefore = stub.reconnectCalls;
+
+    const res = await fetch(`${base}/api/gateway/reconnect`, { method: "POST" });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { state: "connected", ready: true });
+    assert.equal(stub.reconnectCalls, callsBefore, "no second identify");
+
+    const state = await (await fetch(`${base}/api/gateway/connection`)).json();
+    assert.deepEqual(state, { state: "connected", ready: true });
 });
 
 // index.js owns the express server for the whole process; end the test

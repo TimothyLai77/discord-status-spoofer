@@ -98,6 +98,58 @@ app.get('/api/getHeartbeat', async (req, res) => {
 
 });
 
+// ─── Gateway connection control ────────────────────────────────────────
+// These three routes drive the UI's Disconnect/Reconnect toggle. Unlike the
+// routes above, which report session data and therefore 500 with no session,
+// /api/gateway/connection answers in every state — including "disconnected",
+// which is exactly the state the UI needs to be able to render.
+
+// GET connection state: { state: connected|connecting|reconnecting|disconnected, ready }
+app.get('/api/gateway/connection', async (req, res) => {
+    console.log('GET: /api/gateway/connection')
+    res.json(gateway.connectionState());
+});
+
+// Drop the gateway connection and keep it down. disconnect() clears the
+// heartbeat and reconnect timers, so nothing brings the socket back until
+// the UI asks for it — the status buttons are greyed out in the UI for
+// exactly that reason (setPresence has no socket to send on).
+app.post('/api/gateway/disconnect', async (req, res) => {
+    try {
+        console.log('POST: /api/gateway/disconnect')
+        gateway.disconnect();
+        res.json(gateway.connectionState());
+    } catch {
+        res.status(500);
+        res.send('error disconnecting the gateway')
+    }
+});
+
+// Reconnect on user request, as a fresh identify (the session id left over
+// from a deliberate disconnect is not resumable). This resolves once IDENTIFY
+// has been sent — socket open and HELLO seen — which is the fast part; READY
+// arrives a moment later. So the response says "connecting" and the UI polls
+// /api/gateway/connection until it flips to "connected". A rejected connect()
+// is a real handshake failure (no network, socket died before the session
+// started) and is reported as a 500 with the reason. Pressing it when a
+// session is already up is a no-op — it answers with the current state, so two
+// tabs hitting Reconnect cannot identify over a live session.
+app.post('/api/gateway/reconnect', async (req, res) => {
+    try {
+        console.log('POST: /api/gateway/reconnect')
+        await gateway.reconnect();
+        res.json(gateway.connectionState());
+    } catch (err) {
+        // A failed handshake leaves no socket and no retry scheduled — this is
+        // a user-initiated connect, so nobody owns the retry. Mark the gateway
+        // deliberately down so the UI offers "Reconnect" again instead of
+        // sitting on a "connecting" label that never resolves.
+        gateway.disconnect();
+        res.status(500);
+        res.send(`error reconnecting the gateway: ${err.message}`)
+    }
+});
+
 // update the status {newStatus: "status", isAfk: bool}
 // isAfk maps to the afk field of the op 3 presence frame. Discord uses it
 // to decide whether the account is "away": with afk:true the mobile app
@@ -138,14 +190,23 @@ const changeStatus = async (newStatus, isAfk = false) => {
 
 gateway.on('ready', (user) => {
     console.log(`${user.username} is ready!`);
-    // Default to online AND away (afk:true). The op 3 docs say afk is
-    // "used to determine whether to dispatch mobile push notifications",
-    // and nothing else re-arms the away state after a start except a UI
-    // click (which also sends isAfk:true). Starting online+afk:false
-    // silently killed pushes until someone opened the UI (PR #13).
+    // First READY after a process start: default to online AND away (afk:true).
+    // The op 3 docs say afk is "used to determine whether to dispatch mobile
+    // push notifications", and nothing else re-arms the away state after a
+    // start except a UI click (which also sends isAfk:true). Starting
+    // online+afk:false silently killed pushes until someone opened the UI (PR #13).
+    //
+    // A later READY — a fresh identify, e.g. the UI's Reconnect button —
+    // restores the last status we set instead of resetting to online+away.
+    // The UI asks for a reconnect, it does not ask for its status to be reset,
+    // and an op 9/4007 forced re-identify should not wipe the choice either.
+    //
     // .catch: if the socket dies between READY and here, setPresence
     // rejects — an unhandled rejection would crash the process.
-    changeStatus('online', true).catch((err) => { // default: online + away
+    const apply = statusAlreadySet
+        ? changeStatus(lastStatus, lastAfk)
+        : changeStatus('online', true); // default: online + away
+    apply.catch((err) => {
         console.error('failed to set default status:', err.message);
     })
 })
